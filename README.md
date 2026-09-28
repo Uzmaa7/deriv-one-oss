@@ -505,3 +505,6 @@ See [docs/ADOPTER_GUIDE.md](docs/ADOPTER_GUIDE.md) for the full configuration ma
 ## Licence
 
 MIT. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+=======
+# deriv-one-oss
+>>>>>>> origin/master
