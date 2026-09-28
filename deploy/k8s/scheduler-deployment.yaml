@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-scheduler
+  namespace: platform
+  labels:
+    app.kubernetes.io/name: platform
+    app.kubernetes.io/component: scheduler
+spec:
+  # Exactly one replica unless you add leader election.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: platform
+      app.kubernetes.io/component: scheduler
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: platform
+        app.kubernetes.io/component: scheduler
+    spec:
+      containers:
+        - name: scheduler
+          image: REGISTRY/platform-backend:TAG
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "scheduler_worker"]
+          envFrom:
+            - configMapRef:
+                name: platform-config
+            - secretRef:
+                name: platform-secrets
+          env:
+            - name: ENABLE_CRON_SCHEDULER
+              value: "true"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi

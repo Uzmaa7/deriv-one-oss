@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-config
+  namespace: platform
+  labels:
+    app.kubernetes.io/name: platform
+data:
+  APP_ENV: production
+  APP_NAME: Platform
+  APP_BASE_URL: https://platform.example.com
+  RESOURCE_PREFIX: platform
+  ENABLE_MOCK_AUTH: "false"
+  RUN_MIGRATIONS: "true"
+  # Provider short names — swap for dotted import paths when using cloud plugins.
+  BLOB_STORE: local
+  SECRET_BACKEND: local
+  MESSAGE_QUEUE: inprocess
+  DIRECTORY_PROVIDER: claims
+  # Reachable from worker pods on the cluster network.
+  PLATFORM_INTERNAL_BASE_URL: http://backend:8000
+  # OpenAI-compatible model gateway (BYO).
+  MODEL_GATEWAY_URL: https://your-gateway.example.com/v1

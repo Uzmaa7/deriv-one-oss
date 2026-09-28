@@ -1,0 +1,6 @@
+apiVersion: v2
+name: platform
+description: Minimal Helm chart for the open-source AI platform (API, UI, scheduler, optional workers)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

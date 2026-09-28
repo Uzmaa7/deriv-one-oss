@@ -1,0 +1,26 @@
+# deps & build output
+node_modules
+dist
+.git
+**/__pycache__
+**/*.pyc
+*.log
+.DS_Store
+
+# secrets & local data (mount at runtime)
+.env
+.env.*
+!.env.example
+backend/.env
+backend/platform.env
+**/platform.env
+!**/platform.env.example
+backend/hub.db
+
+# large / irrelevant (keep **/*.md — skills bundle uses skill.md and references/*.md)
+coverage
+
+# python virtualenvs and test-only files never belong in the image
+**/.venv
+**/.pytest_cache
+var/

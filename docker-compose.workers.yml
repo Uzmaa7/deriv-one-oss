@@ -1,0 +1,80 @@
+# Optional background workers for multi-process deployments.
+#
+# Usage (with the main stack already running):
+#   docker compose -f docker-compose.yml -f docker-compose.workers.yml up -d
+#
+# Run exactly ONE replica of scheduler-worker unless you add leader election.
+# slack-consumer is the default Slack worker. warm-worker is optional (advanced throughput).
+# Do not run both consumers on the same queue without a deliberate split.
+
+name: platform
+
+services:
+  scheduler-worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - backend/.env
+    environment:
+      HUB_DATABASE_PATH: ${HUB_DATABASE_PATH:-/data/hub.db}
+      BLOB_ROOT: /data/blobs
+      SECRET_ROOT: /data/secrets
+      RETRIEVAL_ROOT: /data/retrieval
+      ENABLE_CRON_SCHEDULER: "true"
+    command: ["python", "-m", "scheduler_worker"]
+    volumes:
+      - platform-data:/data
+      - platform-generated:/app/generated
+      - platform-skills:/src/data
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  slack-consumer-worker:
+    profiles: ["slack"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - backend/.env
+    environment:
+      HUB_DATABASE_PATH: ${HUB_DATABASE_PATH:-/data/hub.db}
+      BLOB_ROOT: /data/blobs
+      SECRET_ROOT: /data/secrets
+    command: ["python", "-m", "slack_consumer_worker"]
+    volumes:
+      - platform-data:/data
+      - platform-generated:/app/generated
+      - platform-skills:/src/data
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  warm-worker:
+    profiles: ["slack"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - backend/.env
+    environment:
+      HUB_DATABASE_PATH: ${HUB_DATABASE_PATH:-/data/hub.db}
+      BLOB_ROOT: /data/blobs
+      SECRET_ROOT: /data/secrets
+    command: ["python", "-m", "warm_worker"]
+    volumes:
+      - platform-data:/data
+      - platform-generated:/app/generated
+      - platform-skills:/src/data
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  platform-data:
+  platform-generated:
+  platform-skills:

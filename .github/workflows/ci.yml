@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  forbidden-patterns:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for secrets and org-specific hosts
+        run: bash scripts/check-forbidden-patterns.sh
+
+  typescript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  python-smoke:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: python -m pytest tests/ -v
+        env:
+          ENABLE_MOCK_AUTH: "true"
+          APP_ENV: development
+          MODEL_GATEWAY_URL: http://127.0.0.1:4000
+      - run: python -c "import main"
+        env:
+          ENABLE_MOCK_AUTH: "true"
+          APP_ENV: development
+          MODEL_GATEWAY_URL: http://127.0.0.1:4000
+
+  compose-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate docker compose file
+        run: docker compose config > /dev/null

@@ -1,0 +1,10 @@
+{
+  "token_mode": "app_configuration",
+  "client_id": "",
+  "client_secret": "",
+  "access_token": "xoxe.xoxp-PASTE-ACCESS-TOKEN",
+  "refresh_token": "xoxe-1-PASTE-REFRESH-TOKEN",
+  "last_rotated_at": null,
+  "last_sync_at": null,
+  "extra": {}
+}

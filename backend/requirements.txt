@@ -1,0 +1,38 @@
+fastapi>=0.111.0
+python-multipart>=0.0.9
+uvicorn[standard]>=0.30.0
+anthropic>=0.40.0
+openai>=1.40.0
+python-dotenv>=1.0.0
+PyJWT>=2.8.0
+# Required by PyJWT for RS256/JWKS verification, by providers/secrets.py
+# (AESGCM, the default local secret backend) and by api_apps.py (Fernet).
+cryptography>=42.0
+requests>=2.31.0
+sqlalchemy>=2.0
+psycopg2-binary>=2.9
+alembic>=1.13
+asyncpg>=0.29
+apscheduler>=3.10
+reportlab>=4.0
+google-auth>=2.0
+google-auth-httplib2>=0.2
+slack-sdk>=3.27
+redis[asyncio]>=5.0
+httpx>=0.27
+curl-cffi>=0.7
+beautifulsoup4>=4.12
+lxml>=5.0
+pyyaml>=6.0
+websockets>=12.0,<14.0
+pdfminer.six>=20221105
+python-docx>=1.1.0
+openpyxl>=3.1
+Pillow>=10.0
+numpy>=1.26
+pytest>=8.0
+
+# Optional extras (install as needed):
+#   pip install -r requirements-integrations.txt   # Google Workspace OAuth
+#   pip install -r requirements-k8s.txt          # Admin infra + K8s sandbox
+#   pip install -r requirements-gcp.txt          # GCP provider implementations

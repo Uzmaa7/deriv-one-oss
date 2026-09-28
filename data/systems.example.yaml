@@ -1,0 +1,38 @@
+# Example connected-system catalogue for backend/system_catalog.py.
+#
+# Copy to the path named by SYSTEM_CATALOG_FILE (default data/systems.yaml).
+# A "connected system" is anything outside this platform that a skill or agent
+# might reach. The catalogue drives two things: the declared-reach list shown on
+# a published skill, and the alert raised when a high-risk skill is attached to
+# an agent.
+#
+# Leave the file absent if you have no inventory — both features quietly do
+# nothing rather than failing.
+#
+# name        joins to a skill's `integrations` entries, matched case-insensitively
+# risk_level  critical | high | medium | low   (high and critical raise alerts)
+# status      Active | Inactive               (inactive systems are never matched)
+
+systems:
+  - name: GitHub
+    risk_level: medium
+    status: Active
+    owner: platform-team
+    description: Source control and code review
+
+  - name: Billing API
+    risk_level: critical
+    status: Active
+    owner: payments-team
+    description: Customer invoices, refunds and payment methods
+
+  - name: Analytics Warehouse
+    risk_level: high
+    status: Active
+    owner: data-team
+    description: Product and revenue analytics
+
+  - name: Legacy Reporting
+    risk_level: low
+    status: Inactive
+    description: Retired — retained here so historical links still resolve

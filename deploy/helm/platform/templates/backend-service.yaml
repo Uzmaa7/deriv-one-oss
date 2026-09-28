@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  # Name must be "backend" — the frontend nginx image proxies to backend:8000.
+  name: backend
+  namespace: {{ include "platform.namespace" . }}
+  labels:
+    {{- include "platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "platform.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

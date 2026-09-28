@@ -1,0 +1,42 @@
+# LOCAL-BUILD VARIANT of the Node sandbox image.
+#
+# Uses a standard Python slim base instead of the orchestrator-specific
+# registry.k8s.io/agent-sandbox/python-runtime-sandbox:v0.1.0 so you can build
+# and test node_modules pre-baking on your workstation.
+#
+# Build:
+#   docker build -f docker/sandbox-node/Dockerfile.local \
+#     -t node-sandbox:v1-local docker/sandbox-node/
+#
+# The production Dockerfile (docker/sandbox-node/Dockerfile) targets an
+# orchestrator-managed sandbox base and is unused by the default ContainerSandbox
+# provider, which runs plain python:3.12-slim / node:22-slim containers directly.
+# Point SANDBOX_NODE_IMAGE at a tag built from this file, or from the production
+# one, if you want pre-baked node_modules instead of the stock image.
+FROM python:3.12-slim
+
+# Minimal HTTP server that mirrors the sandbox API expected by executor.py:
+# POST / with body={"code": "..."} → runs code, returns {"stdout","stderr","returncode"}
+RUN pip install --no-cache-dir fastapi uvicorn[standard]==0.30.6
+
+COPY sandbox_server.py /sandbox_server.py
+
+# Node.js LTS
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pre-bake Vite + React node_modules so builds skip cold installs.
+RUN mkdir -p /opt/vite-template
+WORKDIR /opt/vite-template
+COPY vite-package.json package.json
+RUN npm install --ignore-scripts --no-audit --no-fund \
+    && chmod -R a+rX /opt/vite-template
+
+ENV PATH="/opt/vite-template/node_modules/.bin:${PATH}"
+
+WORKDIR /
+EXPOSE 8888
+CMD ["uvicorn", "sandbox_server:app", "--host", "0.0.0.0", "--port", "8888"]
