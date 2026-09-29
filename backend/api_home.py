@@ -36,16 +36,19 @@ def _agent_has_slack(agent: Agent) -> bool:
 
 def _my_access_status(agent: Agent, user_sub: str, user_email: str, db: Session) -> str:
     """Mirror api_agents._my_access_status without importing api_agents (heavy deps)."""
-    if agent.owner_sub == user_sub or (agent.creator_email or "").lower() == user_email.lower():
+    from agent_access_helpers import is_agent_owner
+
+    if is_agent_owner(agent, user_sub, user_email):
         return "owner"
+    caller = (user_email or "").strip().lower()
     collab = (
         db.query(AgentCollaborator)
         .filter(
             AgentCollaborator.agent_id == agent.id,
-            AgentCollaborator.user_email == user_email.lower(),
+            AgentCollaborator.user_email == caller,
         )
         .first()
-    )
+    ) if caller else None
     if collab:
         return "collaborator"
     now = _utcnow()

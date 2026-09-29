@@ -173,10 +173,9 @@ class RevokeBody(BaseModel):
 
 
 def _is_agent_owner(ctx, agent: Agent) -> bool:
-    return (
-        (agent.creator_email or "").lower() == ctx.email.lower()
-        or agent.owner_sub == ctx.sub
-    )
+    from agent_access_helpers import is_agent_owner
+
+    return is_agent_owner(agent, ctx.sub, ctx.email)
 
 
 def _ensure_agent_owner_or_admin(ctx, agent: Agent) -> None:
@@ -221,7 +220,9 @@ async def _bulk_grant_agent_access(
     errors: list[dict] = []
 
     for user_email in target_emails:
-        if (agent.creator_email or "").lower() == user_email:
+        from agent_access_helpers import creator_email_matches
+
+        if creator_email_matches(agent.creator_email, user_email):
             errors.append({
                 "email": user_email,
                 "error": "That user is the creator of this agent — they already have access.",
@@ -315,7 +316,9 @@ async def request_agent_access(
     agent = _get_agent_or_404(agent_id, db)
 
     # Creator always has implicit access — no need to request
-    if (agent.creator_email or "").lower() == ctx.email.lower():
+    from agent_access_helpers import creator_email_matches
+
+    if creator_email_matches(agent.creator_email, ctx.email):
         raise HTTPException(status_code=400, detail="You are the creator of this agent — you already have access.")
 
     # Reject duplicate active grant
@@ -368,7 +371,9 @@ def get_agent_access_status(
     ctx = _auth(request)
     agent = _get_agent_or_404(agent_id, db)
 
-    if (agent.creator_email or "").lower() == ctx.email.lower() or agent.owner_sub == ctx.sub:
+    from agent_access_helpers import is_agent_owner
+
+    if is_agent_owner(agent, ctx.sub, ctx.email):
         return {"access": "owner", "grant": None}
 
     active = _active_grant_for_user(agent_id, ctx.email, db)
@@ -722,10 +727,9 @@ from sqlalchemy.exc import IntegrityError  # noqa: E402
 def _owner_or_admin(request: Request, agent: Agent, db=None) -> None:
     """Raise 403 unless the requester is the agent owner, a collaborator, or a platform admin."""
     ctx = _auth(request)
-    is_owner = (
-        (agent.creator_email or "").lower() == ctx.email.lower()
-        or agent.owner_sub == ctx.sub
-    )
+    from agent_access_helpers import is_agent_owner
+
+    is_owner = is_agent_owner(agent, ctx.sub, ctx.email)
     if not is_owner and not ctx.is_admin:
         # Fall through to collaborator check
         _db_instance = db

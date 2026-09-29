@@ -1,15 +1,17 @@
 """SSRF guards for server-side HTTP fetches.
 
 Validates scheme, hostname, and resolved addresses before a request is sent,
-and re-validates each redirect target via httpx request hooks.
+pins DNS resolution for the actual TCP connection, and re-validates redirect
+targets.
 """
 
 from __future__ import annotations
 
+import contextlib
 import ipaddress
 import socket
-from typing import Optional
-from urllib.parse import urlparse
+from typing import Iterator, Optional
+from urllib.parse import urljoin, urlparse
 
 
 _BLOCKED_HOSTNAMES = frozenset(
@@ -59,6 +61,13 @@ def _resolve_host_ips(hostname: str) -> list[str]:
     return ips
 
 
+def pick_public_ip(hostname: str) -> str:
+    for ip_str in _resolve_host_ips(hostname):
+        if not _ip_blocked(ipaddress.ip_address(ip_str)):
+            return ip_str
+    raise ValueError("Fetching private or internal URLs is not permitted.")
+
+
 def validate_fetch_url(url: str) -> tuple[bool, str]:
     """Return (ok, error_message). Empty error_message when ok is True."""
     parsed = urlparse(url)
@@ -70,7 +79,6 @@ def validate_fetch_url(url: str) -> tuple[bool, str]:
     if blocked:
         return False, blocked
 
-    # Literal IP in URL
     if hostname:
         try:
             literal = ipaddress.ip_address(hostname)
@@ -81,20 +89,93 @@ def validate_fetch_url(url: str) -> tuple[bool, str]:
             pass
 
     try:
-        for ip_str in _resolve_host_ips(hostname or ""):
-            addr = ipaddress.ip_address(ip_str)
-            if _ip_blocked(addr):
-                return False, "Fetching private or internal URLs is not permitted."
+        pick_public_ip(hostname or "")
     except ValueError as exc:
         return False, str(exc)
 
     return True, ""
 
 
-def httpx_request_hook(request) -> None:
-    """httpx event hook — reject disallowed redirect / request targets."""
-    ok, err = validate_fetch_url(str(request.url))
-    if not ok:
-        import httpx
+@contextlib.contextmanager
+def pin_hostname(hostname: str, ip: str) -> Iterator[None]:
+    """Force subsequent socket resolution for *hostname* to *ip*."""
+    original = socket.getaddrinfo
 
-        raise httpx.RequestError(err)
+    def _patched(host, port, family=0, type=0, proto=0, flags=0):
+        if host == hostname:
+            return original(ip, port, family, type, proto, flags)
+        return original(host, port, family, type, proto, flags)
+
+    socket.getaddrinfo = _patched
+    try:
+        yield
+    finally:
+        socket.getaddrinfo = original
+
+
+def sync_fetch_response(
+    url: str,
+    *,
+    headers: dict[str, str],
+    timeout: float = 20.0,
+    max_redirects: int = 5,
+):
+    """Fetch with DNS pinning (sync). Returns an httpx.Response."""
+    import httpx
+
+    current = url
+    for _ in range(max_redirects + 1):
+        ok, err = validate_fetch_url(current)
+        if not ok:
+            raise ValueError(err)
+        parsed = urlparse(current)
+        hostname = parsed.hostname or ""
+        pinned_ip = pick_public_ip(hostname)
+        with pin_hostname(hostname, pinned_ip):
+            with httpx.Client(
+                follow_redirects=False,
+                timeout=timeout,
+            ) as client:
+                response = client.get(current, headers=headers)
+        if response.status_code in (301, 302, 303, 307, 308):
+            location = response.headers.get("location")
+            if not location:
+                return response
+            current = urljoin(current, location)
+            continue
+        return response
+    raise ValueError("Too many redirects")
+
+
+async def async_fetch_response(
+    url: str,
+    *,
+    headers: dict[str, str],
+    timeout: float = 15.0,
+    max_redirects: int = 5,
+):
+    """Fetch with DNS pinning (async). Returns an httpx.Response."""
+    import httpx
+
+    current = url
+    for _ in range(max_redirects + 1):
+        ok, err = validate_fetch_url(current)
+        if not ok:
+            raise ValueError(err)
+        parsed = urlparse(current)
+        hostname = parsed.hostname or ""
+        pinned_ip = pick_public_ip(hostname)
+        with pin_hostname(hostname, pinned_ip):
+            async with httpx.AsyncClient(
+                follow_redirects=False,
+                timeout=timeout,
+            ) as client:
+                response = await client.get(current, headers=headers)
+        if response.status_code in (301, 302, 303, 307, 308):
+            location = response.headers.get("location")
+            if not location:
+                return response
+            current = urljoin(current, location)
+            continue
+        return response
+    raise ValueError("Too many redirects")

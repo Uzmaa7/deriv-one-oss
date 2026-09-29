@@ -83,6 +83,36 @@ def test_filter_visible_app_files_shows_records_for_owner():
     assert visible == files
 
 
+def test_lab_app_api_guard_blocks_non_apps_api():
+    from lab_app_api_guard import lab_app_api_path_allowed, request_from_lab_app_sandbox
+
+    assert request_from_lab_app_sandbox(None, "https://platform.example/apps/demo/")
+    assert not lab_app_api_path_allowed("/api/agents")
+    assert lab_app_api_path_allowed("/api/apps/abc/run")
+
+
+def test_slack_registration_claim_blocks_other_owner():
+    from access_models import SlackAppRegistrationClaim
+
+    claim = SlackAppRegistrationClaim(slack_app_id="A01234567", owner_sub="sub-a")
+    assert claim.owner_sub != "sub-b"
+
+
+def test_validate_zip_archive_rejects_many_members():
+    import zipfile
+    from io import BytesIO
+
+    from document_extract import MAX_ZIP_MEMBERS, validate_zip_archive
+
+    buf = BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        for i in range(MAX_ZIP_MEMBERS + 1):
+            zf.writestr(f"f{i}.txt", "x")
+    ok, reason = validate_zip_archive(buf.getvalue())
+    assert not ok
+    assert "members" in reason
+
+
 def test_cap_extracted_text_truncates_large_output(monkeypatch):
     import importlib
 

@@ -1341,9 +1341,13 @@ def _extract_pdf_text(data: bytes) -> str:
         from io import BytesIO
         from pdfminer.high_level import extract_text
         from pdfminer.pdfdocument import PDFPasswordIncorrect
-        try:
-            from document_extract import cap_extracted_text
+        from document_extract import cap_extracted_text, validate_pdf_for_extraction
 
+        ok, reason = validate_pdf_for_extraction(data)
+        if not ok:
+            logger.warning("PDF rejected before extraction: %s", reason)
+            return ""
+        try:
             text = cap_extracted_text((extract_text(BytesIO(data)) or "").strip())
             return text
         except PDFPasswordIncorrect:
@@ -1359,7 +1363,12 @@ def _extract_docx_text(data: bytes) -> str:
     try:
         from io import BytesIO
         from docx import Document
-        from document_extract import MAX_DOCX_PARTS, cap_extracted_text
+        from document_extract import MAX_DOCX_PARTS, cap_extracted_text, validate_zip_archive
+
+        ok, reason = validate_zip_archive(data)
+        if not ok:
+            logger.warning("DOCX rejected before extraction: %s", reason)
+            return ""
 
         doc = Document(BytesIO(data))
         parts: list[str] = []
@@ -1394,10 +1403,15 @@ def _extract_xlsx_text(data: bytes) -> str:
     try:
         from io import BytesIO
         from openpyxl import load_workbook
+        from document_extract import MAX_DOCX_PARTS, cap_extracted_text, validate_zip_archive
+
+        ok, reason = validate_zip_archive(data)
+        if not ok:
+            logger.warning("XLSX rejected before extraction: %s", reason)
+            return ""
 
         wb = load_workbook(BytesIO(data), read_only=True, data_only=True)
         parts: list[str] = []
-        from document_extract import MAX_DOCX_PARTS, cap_extracted_text
 
         for ws in wb.worksheets:
             parts.append(f"--- Sheet: {ws.title} ---")
@@ -1954,7 +1968,9 @@ async def _check_agent_access(email: str, agent: Agent) -> bool:
     from skills_acl import is_super_user
     if is_super_user(email):
         return True
-    if (agent.creator_email or "").lower() == email.lower():
+    from agent_access_helpers import creator_email_matches
+
+    if creator_email_matches(agent.creator_email, email):
         return True
     try:
         db = SessionLocal()
@@ -2629,7 +2645,9 @@ def _is_owner_or_collaborator(agent: Agent, sender_email: str) -> bool:
     """
     if not sender_email:
         return False
-    return (agent.creator_email or "").lower() == sender_email.lower()
+    from agent_access_helpers import creator_email_matches
+
+    return creator_email_matches(agent.creator_email, sender_email)
 
 
 def _looks_like_config_command(text: str) -> bool:

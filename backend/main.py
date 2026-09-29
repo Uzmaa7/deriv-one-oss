@@ -201,42 +201,35 @@ async def _fetch_url_content(url: str) -> str:
     - 500 KB response body cap
     - Strips HTML tags via BeautifulSoup before returning
     """
-    from url_fetch_guard import httpx_request_hook, validate_fetch_url
+    from url_fetch_guard import async_fetch_response, validate_fetch_url
 
     ok, err = validate_fetch_url(url)
     if not ok:
         return f"Error: {err}"
 
     try:
-        import httpx
         from bs4 import BeautifulSoup
 
         headers = {
             "User-Agent": http_user_agent("Fetch"),
             "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8",
         }
-        async with httpx.AsyncClient(
-            follow_redirects=True,
-            timeout=15.0,
-            max_redirects=5,
-            event_hooks={"request": [httpx_request_hook]},
-        ) as client:
-            resp = await client.get(url, headers=headers)
-            resp.raise_for_status()
+        resp = await async_fetch_response(url, headers=headers, timeout=15.0, max_redirects=5)
+        resp.raise_for_status()
 
-            # Cap raw body at 500 KB before parsing
-            raw = resp.text[:512_000]
-            content_type = resp.headers.get("content-type", "")
+        # Cap raw body at 500 KB before parsing
+        raw = resp.text[:512_000]
+        content_type = resp.headers.get("content-type", "")
 
-            if "html" in content_type:
-                soup = BeautifulSoup(raw, "lxml")
-                # Remove non-content elements
-                for tag in soup(["script", "style", "nav", "footer", "header",
-                                  "aside", "noscript", "iframe", "form"]):
-                    tag.decompose()
-                text = soup.get_text(separator="\n", strip=True)
-            else:
-                text = raw
+        if "html" in content_type:
+            soup = BeautifulSoup(raw, "lxml")
+            # Remove non-content elements
+            for tag in soup(["script", "style", "nav", "footer", "header",
+                              "aside", "noscript", "iframe", "form"]):
+                tag.decompose()
+            text = soup.get_text(separator="\n", strip=True)
+        else:
+            text = raw
 
         # Collapse runs of blank lines
         text = re.sub(r"\n{3,}", "\n\n", text).strip()
@@ -1799,7 +1792,9 @@ _Base.metadata.create_all(bind=_db_engine, tables=[_SlackAppRecord.__table__])
 
 # Ensure Slack app agent grants table exists
 from access_models import AgentSlackAppGrant as _AgentSlackAppGrant  # noqa: E402,F401
+from access_models import SlackAppRegistrationClaim as _SlackAppRegistrationClaim  # noqa: E402,F401
 _AgentSlackAppGrant.__table__.create(_db_engine, checkfirst=True)
+_SlackAppRegistrationClaim.__table__.create(_db_engine, checkfirst=True)
 
 app.add_middleware(
     CORSMiddleware,
@@ -1851,6 +1846,21 @@ async def identity_gate(request: Request, call_next):
     forbid = rbac_violation(auth, request.method, path)
     if forbid:
         return JSONResponse(status_code=403, content={"detail": forbid})
+
+    from lab_app_api_guard import (
+        lab_app_api_path_allowed,
+        request_from_lab_app_sandbox,
+    )
+
+    if path.startswith("/api/") and request_from_lab_app_sandbox(
+        request.headers.get("origin"),
+        request.headers.get("referer"),
+    ):
+        if not lab_app_api_path_allowed(path):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Lab apps may only call /api/apps endpoints."},
+            )
 
     request.state.auth = auth
     return await call_next(request)

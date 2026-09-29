@@ -287,6 +287,20 @@ def agent_slack_workflow_grant_to_dict(g: AgentSlackWorkflowGrant) -> dict:
     }
 
 
+class SlackAppRegistrationClaim(Base):
+    """Exclusive claim on a Slack app ID during guided registration.
+
+    Prevents one member from pushing a canonical manifest to another member's
+    unregistered Slack app while the platform configuration token has access.
+    """
+
+    __tablename__ = "slack_app_registration_claims"
+
+    slack_app_id = Column(String(40), primary_key=True)
+    owner_sub = Column(String, nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class AgentRole(Base):
     """A named, reusable bundle of skills scoped to one agent.
 
@@ -353,6 +367,7 @@ def init_access_tables(db_engine=None) -> None:
     AgentAccessGrant.__table__.create(target, checkfirst=True)
     AgentSlackAppGrant.__table__.create(target, checkfirst=True)
     AgentSlackWorkflowGrant.__table__.create(target, checkfirst=True)
+    SlackAppRegistrationClaim.__table__.create(target, checkfirst=True)
     AgentRole.__table__.create(target, checkfirst=True)
 
     # Incremental migrations (ADD COLUMN IF NOT EXISTS)

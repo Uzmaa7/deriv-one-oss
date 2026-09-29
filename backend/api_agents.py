@@ -408,17 +408,18 @@ class OrchestrationConfig(BaseModel):
 
 def _is_owner_or_collaborator(agent: Agent, owner_sub: str, user_email: str, db) -> bool:
     """Return True if the user is the agent owner, original creator, or a collaborator."""
-    if agent.owner_sub == owner_sub:
+    from agent_access_helpers import is_agent_owner
+
+    if is_agent_owner(agent, owner_sub, user_email):
         return True
-    creator = (agent.creator_email or "").strip().lower()
     caller = (user_email or "").strip().lower()
-    if creator and caller and creator == caller:
-        return True
+    if not caller:
+        return False
     collab = (
         db.query(AgentCollaborator)
         .filter(
             AgentCollaborator.agent_id == agent.id,
-            AgentCollaborator.user_email == user_email.lower(),
+            AgentCollaborator.user_email == caller,
         )
         .first()
     )
@@ -638,6 +639,27 @@ async def verify_service_account(
                         status_code=422,
                         detail="slack_app_id does not match the specified agent.",
                     )
+            else:
+                from access_models import SlackAppRegistrationClaim
+
+                claim = (
+                    db_auth.query(SlackAppRegistrationClaim)
+                    .filter(SlackAppRegistrationClaim.slack_app_id == slack_id)
+                    .first()
+                )
+                if claim and claim.owner_sub != owner_sub:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="This Slack app is already being registered by another user.",
+                    )
+                if not claim:
+                    db_auth.add(
+                        SlackAppRegistrationClaim(
+                            slack_app_id=slack_id,
+                            owner_sub=owner_sub,
+                        )
+                    )
+                    db_auth.commit()
         finally:
             db_auth.close()
     if verified and body.push_canonical_manifest:
@@ -827,6 +849,13 @@ def register_agent(
         db.commit()
         db.refresh(agent)
 
+        from access_models import SlackAppRegistrationClaim
+
+        db.query(SlackAppRegistrationClaim).filter(
+            SlackAppRegistrationClaim.slack_app_id == body.slack_app_id.strip()
+        ).delete(synchronize_session=False)
+        db.commit()
+
         if body.creation_method == "guided":
             # Guided's "Done" push (verify_service_account) intentionally left
             # event_subscriptions out of the manifest — the request_url couldn't
@@ -896,18 +925,19 @@ def _my_access_status(agent: Agent, user_sub: str, user_email: str, db) -> str:
 
     Returns one of: "owner" | "collaborator" | "approved" | "pending" | "none"
     """
-    creator = (agent.creator_email or "").strip().lower()
-    caller = (user_email or "").strip().lower()
-    if agent.owner_sub == user_sub or (creator and caller and creator == caller):
+    from agent_access_helpers import is_agent_owner
+
+    if is_agent_owner(agent, user_sub, user_email):
         return "owner"
+    caller = (user_email or "").strip().lower()
     collab = (
         db.query(AgentCollaborator)
         .filter(
             AgentCollaborator.agent_id == agent.id,
-            AgentCollaborator.user_email == user_email.lower(),
+            AgentCollaborator.user_email == caller,
         )
         .first()
-    )
+    ) if caller else None
     if collab:
         return "collaborator"
     from datetime import datetime, timezone
@@ -2639,18 +2669,17 @@ async def add_collaborator(
         if not agent or agent.status == "decommissioned":
             raise HTTPException(status_code=404, detail="Agent not found.")
 
-        # Only the owner (not a collaborator) or an admin can add collaborators
-        is_owner = (
-            agent.owner_sub == owner_sub
-            or (agent.creator_email or "").lower() == user_email.lower()
-        )
-        if not is_owner and not auth.is_admin:
+        from agent_access_helpers import creator_email_matches, emails_match, is_agent_owner
+
+        if not is_agent_owner(agent, owner_sub, user_email) and not auth.is_admin:
             raise HTTPException(status_code=403, detail="Only the agent owner or an admin can add collaborators.")
 
         collab_email = body.email.lower()
 
         # Cannot add yourself as a collaborator if you're already the owner
-        if (agent.creator_email or "").lower() == collab_email or agent.owner_sub == owner_sub and collab_email == user_email.lower():
+        if creator_email_matches(agent.creator_email, collab_email) or (
+            agent.owner_sub == owner_sub and emails_match(collab_email, user_email)
+        ):
             raise HTTPException(status_code=400, detail="The agent owner cannot be added as a collaborator.")
 
         collab = AgentCollaborator(
@@ -2690,11 +2719,10 @@ def remove_collaborator(
         if not agent or agent.status == "decommissioned":
             raise HTTPException(status_code=404, detail="Agent not found.")
 
-        is_owner = (
-            agent.owner_sub == owner_sub
-            or (agent.creator_email or "").lower() == user_email.lower()
-        )
-        is_self_removal = user_email.lower() == target_email
+        from agent_access_helpers import emails_match, is_agent_owner
+
+        is_owner = is_agent_owner(agent, owner_sub, user_email)
+        is_self_removal = emails_match(user_email, target_email)
 
         if not is_owner and not is_self_removal and not auth.is_admin:
             raise HTTPException(

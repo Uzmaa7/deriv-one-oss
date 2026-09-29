@@ -245,7 +245,7 @@ def _run_skill_creation(job_id: str) -> None:
 
 def _fetch_url(url: str) -> str:
     """Fetch text content from a URL. Returns truncated content."""
-    from url_fetch_guard import httpx_request_hook, validate_fetch_url
+    from url_fetch_guard import sync_fetch_response, validate_fetch_url
 
     ok, err = validate_fetch_url(url)
     if not ok:
@@ -255,20 +255,14 @@ def _fetch_url(url: str) -> str:
         "User-Agent": f"Mozilla/5.0 (compatible; {APP_NAME.replace(' ', '')}SkillCreator/1.0)",
         "Accept": "text/html,text/plain,application/json,*/*",
     }
-    with httpx.Client(
-        timeout=20,
-        follow_redirects=True,
-        max_redirects=5,
-        event_hooks={"request": [httpx_request_hook]},
-    ) as client:
-        resp = client.get(url, headers=headers)
-        resp.raise_for_status()
-        content = resp.text
-        # Truncate to cap
-        if len(content.encode("utf-8")) > _MAX_URL_CONTENT_BYTES:
-            content = content[: _MAX_URL_CONTENT_BYTES // 4 * 3]  # ~192 KB in chars
-            content += "\n\n[Content truncated — file too large]"
-        return content
+    resp = sync_fetch_response(url, headers=headers, timeout=20.0, max_redirects=5)
+    resp.raise_for_status()
+    content = resp.text
+    # Truncate to cap
+    if len(content.encode("utf-8")) > _MAX_URL_CONTENT_BYTES:
+        content = content[: _MAX_URL_CONTENT_BYTES // 4 * 3]  # ~192 KB in chars
+        content += "\n\n[Content truncated — file too large]"
+    return content
 
 
 # ── Skill generator prompt ────────────────────────────────────────────────────

@@ -172,7 +172,9 @@ def _has_agent_access(agent, user_email: str, db: Session) -> bool:
     "full" role access no matter how it looks on paper. The owner/creator
     is implicitly covered without needing an AgentAccessGrant row.
     """
-    if (agent.creator_email or "").lower() == user_email.lower():
+    from agent_access_helpers import creator_email_matches
+
+    if creator_email_matches(agent.creator_email, user_email):
         return True
     return _active_grant_for_user(agent.id, user_email, db) is not None
 
