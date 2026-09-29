@@ -77,8 +77,10 @@ def _extract_text(data: bytes, key: str) -> str:
     """
     ext = os.path.splitext(key)[1].lower()
 
+    from document_extract import cap_extracted_text
+
     if ext in _TEXT_EXTENSIONS:
-        return data.decode("utf-8", "replace")
+        return cap_extracted_text(data.decode("utf-8", "replace"))
 
     # Reuse the extractors the attachment path already uses rather than keeping
     # a second implementation. Imported lazily to avoid an import cycle.
@@ -86,15 +88,15 @@ def _extract_text(data: bytes, key: str) -> str:
         if ext == ".pdf":
             from api_slack_events import _extract_pdf_text
 
-            return _extract_pdf_text(data) or ""
+            return cap_extracted_text(_extract_pdf_text(data) or "")
         if ext == ".docx":
             from api_slack_events import _extract_docx_text
 
-            return _extract_docx_text(data) or ""
+            return cap_extracted_text(_extract_docx_text(data) or "")
         if ext in (".xlsx", ".xlsm"):
             from api_slack_events import _extract_xlsx_text
 
-            return _extract_xlsx_text(data) or ""
+            return cap_extracted_text(_extract_xlsx_text(data) or "")
     except Exception:
         logger.warning("kb_index: text extraction failed for %s", key, exc_info=True)
         return ""

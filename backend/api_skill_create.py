@@ -245,11 +245,22 @@ def _run_skill_creation(job_id: str) -> None:
 
 def _fetch_url(url: str) -> str:
     """Fetch text content from a URL. Returns truncated content."""
+    from url_fetch_guard import httpx_request_hook, validate_fetch_url
+
+    ok, err = validate_fetch_url(url)
+    if not ok:
+        raise ValueError(err)
+
     headers = {
         "User-Agent": f"Mozilla/5.0 (compatible; {APP_NAME.replace(' ', '')}SkillCreator/1.0)",
         "Accept": "text/html,text/plain,application/json,*/*",
     }
-    with httpx.Client(timeout=20, follow_redirects=True) as client:
+    with httpx.Client(
+        timeout=20,
+        follow_redirects=True,
+        max_redirects=5,
+        event_hooks={"request": [httpx_request_hook]},
+    ) as client:
         resp = client.get(url, headers=headers)
         resp.raise_for_status()
         content = resp.text

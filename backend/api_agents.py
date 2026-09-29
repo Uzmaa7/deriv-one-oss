@@ -410,7 +410,9 @@ def _is_owner_or_collaborator(agent: Agent, owner_sub: str, user_email: str, db)
     """Return True if the user is the agent owner, original creator, or a collaborator."""
     if agent.owner_sub == owner_sub:
         return True
-    if (agent.creator_email or "").lower() == user_email.lower():
+    creator = (agent.creator_email or "").strip().lower()
+    caller = (user_email or "").strip().lower()
+    if creator and caller and creator == caller:
         return True
     collab = (
         db.query(AgentCollaborator)
@@ -612,6 +614,32 @@ async def verify_service_account(
     if not slack_platform_tokens_configured():
         return {"verified": True, "error": None, "manifest_sync_available": False}
     verified, slack_error, current_scopes = await verify_config_token_app_access(body.slack_app_id.strip())
+    if verified and body.push_canonical_manifest:
+        user_email = _user_email_from_request(request)
+        db_auth = SessionLocal()
+        try:
+            slack_id = body.slack_app_id.strip()
+            linked = (
+                db_auth.query(Agent)
+                .filter(Agent.slack_app_id == slack_id, Agent.status != "decommissioned")
+                .all()
+            )
+            if linked:
+                if not body.agent_id:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="agent_id is required to modify a registered Slack app.",
+                    )
+                agent = _ensure_owner_or_collaborator(
+                    db_auth.get(Agent, body.agent_id), owner_sub, user_email, db_auth
+                )
+                if (agent.slack_app_id or "").strip() != slack_id:
+                    raise HTTPException(
+                        status_code=422,
+                        detail="slack_app_id does not match the specified agent.",
+                    )
+        finally:
+            db_auth.close()
     if verified and body.push_canonical_manifest:
         try:
             token = await load_and_rotate_config_token()
@@ -868,7 +896,9 @@ def _my_access_status(agent: Agent, user_sub: str, user_email: str, db) -> str:
 
     Returns one of: "owner" | "collaborator" | "approved" | "pending" | "none"
     """
-    if agent.owner_sub == user_sub or (agent.creator_email or "").lower() == user_email.lower():
+    creator = (agent.creator_email or "").strip().lower()
+    caller = (user_email or "").strip().lower()
+    if agent.owner_sub == user_sub or (creator and caller and creator == caller):
         return "owner"
     collab = (
         db.query(AgentCollaborator)

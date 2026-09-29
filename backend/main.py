@@ -196,32 +196,16 @@ async def _fetch_url_content(url: str) -> str:
     Security measures:
     - Validates scheme (http/https only)
     - SSRF protection: rejects private/loopback/link-local IP ranges
+    - Re-validates each redirect target
     - 15-second timeout
     - 500 KB response body cap
     - Strips HTML tags via BeautifulSoup before returning
     """
-    import ipaddress
-    import socket
-    from urllib.parse import urlparse
+    from url_fetch_guard import httpx_request_hook, validate_fetch_url
 
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https"):
-        return "Error: Only http:// and https:// URLs are supported."
-
-    hostname = parsed.hostname
-    if not hostname:
-        return "Error: Invalid URL — no hostname found."
-
-    # SSRF guard: resolve hostname → check it's a public IP
-    try:
-        ip_str = await asyncio.get_running_loop().run_in_executor(
-            None, socket.gethostbyname, hostname
-        )
-        addr = ipaddress.ip_address(ip_str)
-        if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
-            return "Error: Fetching private or internal URLs is not permitted."
-    except OSError:
-        return f"Error: Could not resolve hostname '{hostname}'."
+    ok, err = validate_fetch_url(url)
+    if not ok:
+        return f"Error: {err}"
 
     try:
         import httpx
@@ -235,6 +219,7 @@ async def _fetch_url_content(url: str) -> str:
             follow_redirects=True,
             timeout=15.0,
             max_redirects=5,
+            event_hooks={"request": [httpx_request_hook]},
         ) as client:
             resp = await client.get(url, headers=headers)
             resp.raise_for_status()

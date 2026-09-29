@@ -1342,7 +1342,9 @@ def _extract_pdf_text(data: bytes) -> str:
         from pdfminer.high_level import extract_text
         from pdfminer.pdfdocument import PDFPasswordIncorrect
         try:
-            text = (extract_text(BytesIO(data)) or "").strip()
+            from document_extract import cap_extracted_text
+
+            text = cap_extracted_text((extract_text(BytesIO(data)) or "").strip())
             return text
         except PDFPasswordIncorrect:
             logger.warning("PDF text extraction skipped: document is password protected")
@@ -1357,19 +1359,30 @@ def _extract_docx_text(data: bytes) -> str:
     try:
         from io import BytesIO
         from docx import Document
+        from document_extract import MAX_DOCX_PARTS, cap_extracted_text
+
         doc = Document(BytesIO(data))
         parts: list[str] = []
         for paragraph in doc.paragraphs:
             text = paragraph.text.strip()
             if text:
                 parts.append(text)
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    text = cell.text.strip()
-                    if text:
-                        parts.append(text)
-        text = "\n".join(parts).strip()
+                if len(parts) >= MAX_DOCX_PARTS:
+                    break
+        if len(parts) < MAX_DOCX_PARTS:
+            for table in doc.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        text = cell.text.strip()
+                        if text:
+                            parts.append(text)
+                            if len(parts) >= MAX_DOCX_PARTS:
+                                break
+                    if len(parts) >= MAX_DOCX_PARTS:
+                        break
+                if len(parts) >= MAX_DOCX_PARTS:
+                    break
+        text = cap_extracted_text("\n".join(parts).strip())
         return text
     except Exception:
         logger.warning("DOCX text extraction failed", exc_info=True)
@@ -1384,13 +1397,19 @@ def _extract_xlsx_text(data: bytes) -> str:
 
         wb = load_workbook(BytesIO(data), read_only=True, data_only=True)
         parts: list[str] = []
+        from document_extract import MAX_DOCX_PARTS, cap_extracted_text
+
         for ws in wb.worksheets:
             parts.append(f"--- Sheet: {ws.title} ---")
             for row in ws.iter_rows(values_only=True):
                 cells = ["" if c is None else str(c) for c in row]
                 if any(cells):
                     parts.append("\t".join(cells))
-        return "\n".join(parts).strip()
+                    if len(parts) >= MAX_DOCX_PARTS:
+                        break
+            if len(parts) >= MAX_DOCX_PARTS:
+                break
+        return cap_extracted_text("\n".join(parts).strip())
     except Exception:
         logger.warning("XLSX text extraction failed", exc_info=True)
         return ""
@@ -2274,7 +2293,7 @@ async def _filter_accessible_skills(
             return []
     if not all_slugs:
         return []
-    missing = await _check_agent_skill_access(email, agent)
+    missing = await _check_agent_skill_access(email, agent, skill_ids=all_slugs)
     missing_set = set(missing)
     return [s for s in all_slugs if s not in missing_set]
 
@@ -2455,21 +2474,30 @@ def _max_tool_turns_for_agent(agent: Agent) -> int:
     return max(matched) if matched else _MAX_TOOL_TURNS
 
 
-async def _check_agent_skill_access(email: str, agent: Agent) -> list[str]:
+async def _check_agent_skill_access(
+    email: str,
+    agent: Agent,
+    *,
+    skill_ids: list[str] | None = None,
+) -> list[str]:
     """Return slugs of skills attached to this agent that the sender cannot access.
 
     Checks Tier 1 (department / executive) first via ``skills_acl``, then falls
     back to approved cross-department grants (Tier 2) stored in the DB.
+
+    When ``skill_ids`` is provided, the ACL check runs against that list instead
+    of ``agent.skill_ids`` (used for per-channel skill overrides).
 
     Returns an empty list when all skills are accessible or no email is known.
     """
     if not email:
         return []
 
-    try:
-        skill_ids: list[str] = _json.loads(agent.skill_ids or "[]")
-    except (ValueError, TypeError):
-        return []
+    if skill_ids is None:
+        try:
+            skill_ids = _json.loads(agent.skill_ids or "[]")
+        except (ValueError, TypeError):
+            return []
 
     if not skill_ids:
         return []

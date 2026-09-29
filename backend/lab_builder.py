@@ -233,6 +233,7 @@ async def run_lab_builder(
         _MODEL_GATEWAY_API_KEY,
         _MODEL_GATEWAY_URL,
         _MODEL,
+        _accessible_skill_slugs,
         _build_system_prompt,
         _compress_history,
         _list_app_files,
@@ -277,7 +278,8 @@ async def run_lab_builder(
         effective_message = "\n".join(attach_notes) + "\n\n" + message
 
     existing_files = set(_list_app_files(app_id_val))
-    system_prompt = _build_system_prompt(app, list(existing_files))
+    accessible = await _accessible_skill_slugs(app.owner_sub, app.creator_email or "")
+    system_prompt = _build_system_prompt(app, list(existing_files), accessible_slugs=accessible)
     max_turns = _max_turns(tech_stack)
     tools = _builder_tools(tech_stack)
 

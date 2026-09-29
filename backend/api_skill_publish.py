@@ -518,12 +518,18 @@ async def submit_skill(
 
 
 @router.get("/api/skills/{slug}/content")
-def get_skill_content(slug: str, request: Request):
+async def get_skill_content(slug: str, request: Request):
     """Return the raw SKILL.md content for a given slug (runtime-published skills)."""
-    _auth(request)
+    auth = _auth(request)
 
     if not _SLUG_RE.match(slug.strip().lower()):
         raise HTTPException(status_code=422, detail="Invalid slug.")
+
+    from skill_router import resolve_user_skill_access
+
+    _, _, accessible = await resolve_user_skill_access(auth.sub, auth.email)
+    if slug.strip().lower() not in accessible:
+        raise HTTPException(status_code=404, detail="Skill content not found.")
 
     skill_path = _skills_dir() / slug / "skill.md"
     if not skill_path.exists():

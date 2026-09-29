@@ -140,6 +140,25 @@ export function hydrateMessageContent(content: string): {
   return { content: cleaned, files, proposal, steps };
 }
 
+function escapeHtmlText(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function escapeHtmlAttr(value: string): string {
+  return escapeHtmlText(value).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function sanitizeFenceLang(lang: string): string {
+  const trimmed = lang.trim();
+  if (!trimmed || !/^[A-Za-z0-9_+#.-]{1,32}$/.test(trimmed)) {
+    return "";
+  }
+  return escapeHtmlText(trimmed);
+}
+
 // ── Inline markdown transformer ──────────────────────────────────────────────
 export function applyInline(rawText: string): string {
   // Escape raw HTML BEFORE applying any markdown formatting below. This text
@@ -153,8 +172,10 @@ export function applyInline(rawText: string): string {
   // Use [^*\n]+ instead of .+? to prevent catastrophic backtracking on unmatched asterisks
   return text
     .replace(/\[([^\]]+)\]\((\/api\/files\/[^)]+)\)/g, (_, t, url) => {
-      const name = url.split("/").pop() ?? "document.pdf";
-      return `<a href="${url}" data-pdf-url="${url}" data-pdf-name="${name}" class="inline-flex items-center gap-1.5 text-[#FF444F] hover:text-[#e63d48] underline underline-offset-2 font-medium cursor-pointer">📄 ${t}</a>`;
+      const safeUrl = escapeHtmlAttr(url);
+      const name = escapeHtmlAttr(url.split("/").pop() ?? "document.pdf");
+      const label = escapeHtmlText(t);
+      return `<a href="${safeUrl}" data-pdf-url="${safeUrl}" data-pdf-name="${name}" class="inline-flex items-center gap-1.5 text-[#FF444F] hover:text-[#e63d48] underline underline-offset-2 font-medium cursor-pointer">📄 ${label}</a>`;
     })
     .replace(/\*\*([^*\n]+)\*\*/g, '<strong class="font-semibold text-[#0E0E0E]">$1</strong>')
     .replace(/\*([^*\n]+)\*/g, '<em class="italic text-slate-500">$1</em>')
@@ -176,8 +197,9 @@ export function renderMarkdown(content: string): string {
     const codeBlocks: string[] = [];
     const withPlaceholders = content.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
       const esc = code.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      const badge = lang
-        ? `<span class="block text-[10px] font-mono font-bold text-[#FF444F] uppercase tracking-wider mb-1.5 select-none">${lang}</span>`
+      const safeLang = sanitizeFenceLang(lang);
+      const badge = safeLang
+        ? `<span class="block text-[10px] font-mono font-bold text-[#FF444F] uppercase tracking-wider mb-1.5 select-none">${safeLang}</span>`
         : "";
       codeBlocks.push(
         `<pre class="bg-[#F8F8F9] border border-slate-200 rounded-lg px-4 py-3 overflow-x-auto text-xs font-mono text-slate-800 leading-relaxed whitespace-pre my-2">${badge}${esc.trimEnd()}</pre>`
@@ -211,8 +233,9 @@ export function renderMarkdown(content: string): string {
         }
         if (lines[i]?.trim().startsWith("```")) i++;
         if (codeLines.length > 0) {
-          const badge = lang
-            ? `<span class="block text-[10px] font-mono font-bold text-[#FF444F] uppercase tracking-wider mb-1.5 select-none">${lang}</span>`
+          const safeLang = sanitizeFenceLang(lang);
+          const badge = safeLang
+            ? `<span class="block text-[10px] font-mono font-bold text-[#FF444F] uppercase tracking-wider mb-1.5 select-none">${safeLang}</span>`
             : "";
           out.push(`<pre class="bg-[#F8F8F9] border border-slate-200 rounded-lg px-4 py-3 overflow-x-auto text-xs font-mono text-slate-800 leading-relaxed whitespace-pre my-2">${badge}${codeLines.join("\n").trimEnd()}</pre>`);
         }

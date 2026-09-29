@@ -376,8 +376,18 @@ class ContainerSandbox(SandboxProvider):
         """Everything the run wrote, minus what we put there."""
         skip = {_entry_filename(spec.language), *(spec.files or {})}
         produced: dict[str, bytes] = {}
+        workdir_resolved = workdir.resolve()
         for path in workdir.rglob("*"):
+            if path.is_symlink():
+                logger.debug("skipping symlink in sandbox output: %s", path)
+                continue
             if not path.is_file():
+                continue
+            try:
+                real = path.resolve()
+                real.relative_to(workdir_resolved)
+            except ValueError:
+                logger.debug("skipping path outside sandbox workdir: %s", path)
                 continue
             name = path.relative_to(workdir).as_posix()
             if name in skip:

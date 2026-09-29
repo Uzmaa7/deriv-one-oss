@@ -290,6 +290,54 @@ def _list_app_files(app_id: str) -> list[str]:
     return result
 
 
+def _filter_visible_app_files(
+    files: list[str],
+    app: App,
+    owner_sub: str,
+) -> list[str]:
+    """Hide reserved record paths from non-owner app readers."""
+    if app.owner_sub == owner_sub:
+        return files
+    return [
+        p for p in files
+        if not p.replace("\\", "/").startswith("_records/")
+    ]
+
+
+async def _accessible_skill_slugs(user_sub: str, email: str) -> frozenset[str]:
+    from skill_router import resolve_user_skill_access
+
+    _, _, slugs = await resolve_user_skill_access(user_sub, email)
+    return slugs
+
+
+async def _ensure_skill_ids_granted(
+    user_sub: str,
+    email: str,
+    skill_ids: list[str],
+) -> None:
+    if not skill_ids:
+        return
+    accessible = await _accessible_skill_slugs(user_sub, email)
+    denied = [s for s in skill_ids if s not in accessible]
+    if denied:
+        raise HTTPException(
+            status_code=403,
+            detail=f"You do not have access to skill(s): {', '.join(denied)}",
+        )
+
+
+async def _load_granted_skill_secrets(app: App) -> dict[str, str]:
+    """Load skill secrets only for skills the app owner is allowed to use."""
+    accessible = await _accessible_skill_slugs(app.owner_sub, app.creator_email or "")
+    merged: dict[str, str] = {}
+    for slug in _load_json_list(app.skill_ids):
+        if slug not in accessible:
+            continue
+        merged.update(_load_skill_secrets(slug))
+    return merged
+
+
 def _load_app_py_files(app_id: str) -> dict[str, str]:
     """Load root-level .py modules for sandbox execution (server.py, data.py, etc.)."""
     files: dict[str, str] = {}
@@ -1386,6 +1434,9 @@ async def create_app(
         if not _SLUG_ALLOWLIST_RE.match(slug_id):
             raise HTTPException(status_code=422, detail=f"Invalid skill id: {slug_id!r}")
 
+    caller_email = _get_caller_email(request)
+    await _ensure_skill_ids_granted(owner_sub, caller_email, skill_ids)
+
     meta = classification_meta_payload(
         classification, mode=mode, tech_stack=tech_stack, skill_ids=skill_ids,
     )
@@ -1577,9 +1628,10 @@ def get_app(app_id: str, request: Request, owner_sub: str = Depends(deps_owner_s
 
 
 @router.put("/api/apps/{app_id}")
-def update_app(
+async def update_app(
     app_id: str,
     body: AppUpdateRequest,
+    request: Request,
     owner_sub: str = Depends(deps_owner_sub),
 ):
     if body.visibility is not None and body.visibility not in APP_VISIBILITIES:
@@ -1595,6 +1647,10 @@ def update_app(
         from apps_models import LAB_MODES
         if body.lab_mode not in LAB_MODES:
             raise HTTPException(status_code=422, detail=f"lab_mode must be one of {list(LAB_MODES)}")
+
+    if body.skill_ids is not None:
+        caller_email = _get_caller_email(request)
+        await _ensure_skill_ids_granted(owner_sub, caller_email, body.skill_ids)
 
     db = SessionLocal()
     try:
@@ -1697,8 +1753,9 @@ def list_files(app_id: str, request: Request, owner_sub: str = Depends(deps_owne
     email = getattr(getattr(request.state, "auth", None), "email", "") or ""
     db = SessionLocal()
     try:
-        _check_read_access(db.get(App, app_id), owner_sub, email)
-        return {"files": _list_app_files(app_id)}
+        app = _check_read_access(db.get(App, app_id), owner_sub, email)
+        files = _filter_visible_app_files(_list_app_files(app_id), app, owner_sub)
+        return {"files": files}
     finally:
         db.close()
 
@@ -2145,18 +2202,31 @@ async def get_live_data(
 
 # ── AI Builder (SSE) ──────────────────────────────────────────────────────────
 
-def _build_system_prompt(app: App, existing_files: list[str]) -> str:
+def _build_system_prompt(
+    app: App,
+    existing_files: list[str],
+    *,
+    accessible_slugs: frozenset[str] | None = None,
+) -> str:
     """Build the system prompt for the AI developer agent."""
     from lab_prompts import build_system_prompt
 
+    granted = accessible_slugs
+    if granted is None:
+        granted = frozenset(_load_json_list(app.skill_ids))
+
     skill_blocks = ""
     for slug in _load_json_list(app.skill_ids):
+        if slug not in granted:
+            continue
         content = _load_skill(slug)
         if content:
             skill_blocks += f"\n\n---\n\n## Attached skill: {slug}\n\n{content}"
 
     all_env_keys: list[str] = []
     for slug in _load_json_list(app.skill_ids):
+        if slug not in granted:
+            continue
         secrets = _load_skill_secrets(slug)
         all_env_keys.extend(k for k in secrets if k not in all_env_keys)
     app_secrets = _decrypt_env_config(app.env_config)
@@ -2246,8 +2316,7 @@ async def _run_snippet_for_builder(app_id: str, code: str) -> str:
     try:
         run_app = db2.get(App, app_id)
         if run_app:
-            for slug in _load_json_list(run_app.skill_ids):
-                merged_secrets.update(_load_skill_secrets(slug))
+            merged_secrets.update(await _load_granted_skill_secrets(run_app))
             merged_secrets.update(_decrypt_env_config(run_app.env_config))
     finally:
         db2.close()
@@ -2863,8 +2932,7 @@ async def run_app_function(
     try:
         run_app = db2.get(App, app_id)
         if run_app:
-            for slug in _load_json_list(run_app.skill_ids):
-                merged_secrets.update(_load_skill_secrets(slug))
+            merged_secrets.update(await _load_granted_skill_secrets(run_app))
             merged_secrets.update(_decrypt_env_config(run_app.env_config))
     finally:
         db2.close()
