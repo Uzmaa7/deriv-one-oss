@@ -1352,6 +1352,26 @@ def _run_automation_job(automation_id: str, manual: bool = False) -> None:
         instructions = automation.instructions
         automation_name = automation.name
         slack_channel = automation.slack_channel
+
+        from automation_skill_access import user_can_access_skill
+
+        if skill_id and not user_can_access_skill(automation_owner_sub, None, skill_id):
+            denied_run = AutomationRun(
+                automation_id=automation_id,
+                status="error",
+                error="Skill access denied",
+                finished_at=datetime.now(timezone.utc),
+                duration_secs=0.0,
+            )
+            db.add(denied_run)
+            db.commit()
+            logger.warning(
+                "Automation %s blocked: owner lacks access to skill %s",
+                automation_id,
+                skill_id,
+            )
+            return
+
         run = AutomationRun(automation_id=automation_id, status="running")
         db.add(run)
         db.commit()
@@ -3347,12 +3367,16 @@ def list_automations(owner_sub: str = Depends(deps_owner_sub)):
 
 @app.post("/api/automations", status_code=201)
 def create_automation(body: AutomationCreate, request: Request, owner_sub: str = Depends(deps_owner_sub)):
+    from automation_skill_access import ensure_skill_granted
+
     slack_ch = _non_empty_slack_channel(body.slack_channel)
     if slack_ch and not slack_user_token_integration_allowed(owner_sub):
         raise HTTPException(
             status_code=403,
             detail="Slack posting is not enabled for this account.",
         )
+    caller_email = getattr(build_auth_context(request.headers), "email", "") or ""
+    ensure_skill_granted(owner_sub, caller_email, body.skill_id)
     db = SessionLocal()
     try:
         auto = Automation(
@@ -3391,7 +3415,14 @@ def get_automation(automation_id: str, owner_sub: str = Depends(deps_owner_sub))
 
 
 @app.put("/api/automations/{automation_id}")
-def update_automation(automation_id: str, body: AutomationUpdate, owner_sub: str = Depends(deps_owner_sub)):
+def update_automation(
+    automation_id: str,
+    body: AutomationUpdate,
+    request: Request,
+    owner_sub: str = Depends(deps_owner_sub),
+):
+    from automation_skill_access import ensure_skill_granted
+
     db = SessionLocal()
     try:
         auto = get_tenant_or_404(db, Automation, automation_id, owner_sub, "Automation not found")
@@ -3400,6 +3431,8 @@ def update_automation(automation_id: str, body: AutomationUpdate, owner_sub: str
         if body.instructions is not None:
             auto.instructions = body.instructions
         if body.skill_id is not None:
+            caller_email = getattr(build_auth_context(request.headers), "email", "") or ""
+            ensure_skill_granted(owner_sub, caller_email, body.skill_id)
             auto.skill_id = body.skill_id
         if body.schedule is not None:
             auto.schedule = body.schedule
@@ -3442,10 +3475,19 @@ def delete_automation(automation_id: str, owner_sub: str = Depends(deps_owner_su
 # ── Automation run endpoints ──────────────────────────────────────────────────
 
 @app.post("/api/automations/{automation_id}/run")
-def trigger_run(automation_id: str, owner_sub: str = Depends(deps_owner_sub)):
+def trigger_run(
+    automation_id: str,
+    request: Request,
+    owner_sub: str = Depends(deps_owner_sub),
+):
+    from automation_skill_access import ensure_skill_granted
+
     db = SessionLocal()
     try:
         auto = get_tenant_or_404(db, Automation, automation_id, owner_sub, "Automation not found")
+        if auto.skill_id:
+            caller_email = getattr(build_auth_context(request.headers), "email", "") or ""
+            ensure_skill_granted(owner_sub, caller_email, auto.skill_id)
     finally:
         db.close()
     # Schedule an immediate one-off execution
