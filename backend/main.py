@@ -18,13 +18,15 @@ from model_catalog import platform_default_model
 _env_dir = Path(__file__).resolve().parent
 load_dotenv(_env_dir / ".env")
 # Wizard-written overrides (local backend/platform.env or /data/platform.env in Docker).
+from auth_env_guard import load_platform_env_safely, reconcile_auth_environment
+
 _hub_db = os.environ.get("HUB_DATABASE_PATH", "").strip()
 if _hub_db:
     _platform_env = Path(_hub_db).resolve().parent / "platform.env"
-    if _platform_env.is_file():
-        load_dotenv(_platform_env, override=True)
+    load_platform_env_safely(_platform_env)
 elif (_env_dir / "platform.env").is_file():
-    load_dotenv(_env_dir / "platform.env", override=True)
+    load_platform_env_safely(_env_dir / "platform.env")
+reconcile_auth_environment()
 
 import anthropic
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -1868,18 +1870,47 @@ async def identity_gate(request: Request, call_next):
         return JSONResponse(status_code=403, content={"detail": forbid})
 
     from lab_app_api_guard import (
+        is_sensitive_platform_api,
         lab_app_api_path_allowed,
         request_from_lab_app_sandbox,
+        untrusted_same_origin_api_call,
+    )
+    from platform_client_guard import (
+        attestation_enforced,
+        is_valid_platform_client,
+        platform_client_header_name,
     )
 
-    if path.startswith("/api/") and request_from_lab_app_sandbox(
-        request.headers.get("origin"),
-        request.headers.get("referer"),
-    ):
-        if not lab_app_api_path_allowed(path):
+    _pc_header = request.headers.get(platform_client_header_name())
+    if path.startswith("/api/"):
+        if request_from_lab_app_sandbox(
+            request.headers.get("origin"),
+            request.headers.get("referer"),
+        ) and not lab_app_api_path_allowed(path):
             return JSONResponse(
                 status_code=403,
                 content={"detail": "Lab apps may only call /api/apps endpoints."},
+            )
+        if untrusted_same_origin_api_call(
+            path=path,
+            origin=request.headers.get("origin"),
+            referer=request.headers.get("referer"),
+            platform_client_header=_pc_header,
+            sec_fetch_site=request.headers.get("sec-fetch-site"),
+            sec_fetch_mode=request.headers.get("sec-fetch-mode"),
+        ) and not lab_app_api_path_allowed(path):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "This API is not available from Lab app contexts."},
+            )
+        if (
+            attestation_enforced()
+            and is_sensitive_platform_api(path)
+            and not is_valid_platform_client(_pc_header)
+        ):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Admin APIs require a platform UI attestation header."},
             )
 
     request.state.auth = auth

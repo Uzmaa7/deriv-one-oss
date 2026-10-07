@@ -78,9 +78,32 @@ _EXTENSION_MIME: dict[str, str] = {
 }
 
 
+def _forbidden_secret_values(env_extras: dict[str, str] | None) -> set[str]:
+    values: set[str] = set()
+    for value in (env_extras or {}).values():
+        if isinstance(value, str) and len(value.strip()) >= 8:
+            values.add(value.strip())
+    return values
+
+
+def _generated_file_contains_secret(data: bytes, forbidden_values: set[str]) -> bool:
+    try:
+        text = data.decode("utf-8", errors="replace")
+    except Exception:
+        text = ""
+    for value in forbidden_values:
+        if value and value in text:
+            return True
+    for pattern, _replacement in _SENSITIVE_PATTERNS:
+        if pattern.search(text):
+            return True
+    return False
+
+
 def _extract_generated_files(
     stdout: str,
     workspace_dir: str,
+    forbidden_values: set[str] | None = None,
 ) -> tuple[str, list[dict]]:
     """Parse FILE markers from *stdout*, save files to *workspace_dir*.
 
@@ -110,6 +133,9 @@ def _extract_generated_files(
         try:
             data = base64.b64decode(b64data)
         except Exception:
+            return ""
+        if _generated_file_contains_secret(data, forbidden_values or set()):
+            logger.warning("executor: blocked generated file %s containing secret material", safe_name)
             return ""
         dest.write_bytes(data)
         ext = pathlib.Path(safe_name).suffix.lower()
@@ -329,8 +355,15 @@ async def execute_in_sandbox(
             returncode = result.exit_code
             # Files the run wrote are surfaced the same way as inline markers,
             # so callers do not need to know which mechanism produced them.
+            forbidden = _forbidden_secret_values(env_extras)
             for name, blob in (result.files or {}).items():
                 try:
+                    if _generated_file_contains_secret(blob, forbidden):
+                        logger.warning(
+                            "executor: blocked sandbox-produced file %s containing secret material",
+                            name,
+                        )
+                        continue
                     target = Path(workspace_dir) / Path(name).name
                     target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_bytes(blob)
@@ -350,7 +383,11 @@ async def execute_in_sandbox(
             raise
 
     # Extract any <|FILE|>...<|ENDFILE|> blobs and save them to workspace_dir.
-    stdout, files = _extract_generated_files(stdout, workspace_dir)
+    stdout, files = _extract_generated_files(
+        stdout,
+        workspace_dir,
+        _forbidden_secret_values(env_extras),
+    )
 
     return {
         "stdout": truncate_tool_output(stdout, max_stdout),

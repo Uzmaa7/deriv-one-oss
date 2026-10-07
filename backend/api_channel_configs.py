@@ -217,7 +217,7 @@ def patch_platform_agent(body: PlatformAgentUpdate, request: Request):
 
 @router.get("/api/platform-agent/channel-configs")
 def list_channel_configs(request: Request):
-    _require_authenticated(request)
+    _require_admin(request)
     agent = _get_platform_agent_or_404()
     db = SessionLocal()
     try:
@@ -272,7 +272,7 @@ def create_channel_config(body: ChannelConfigCreate, request: Request):
 
 @router.get("/api/platform-agent/channel-configs/{channel_id}")
 def get_channel_config_endpoint(channel_id: str, request: Request):
-    _require_authenticated(request)
+    _require_admin(request)
     agent = _get_platform_agent_or_404()
     channel_id = _validate_channel_id(channel_id)
     db = SessionLocal()
@@ -442,7 +442,7 @@ async def regenerate_soul(channel_id: str, request: Request):
 
 @router.get("/api/platform-agent/channel-configs/{channel_id}/memories")
 def list_channel_memories(channel_id: str, request: Request, limit: int = 50):
-    _require_authenticated(request)
+    _require_admin(request)
     agent = _get_platform_agent_or_404()
     channel_id = _validate_channel_id(channel_id)
     if limit < 1 or limit > 200:

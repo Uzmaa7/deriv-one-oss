@@ -14,6 +14,8 @@ from typing import Iterator, Optional
 from urllib.parse import urljoin, urlparse
 
 
+_CGNAT_NETWORK = ipaddress.ip_network("100.64.0.0/10")
+
 _BLOCKED_HOSTNAMES = frozenset(
     {
         "localhost",
@@ -36,6 +38,8 @@ def _hostname_blocked(hostname: str) -> Optional[str]:
 
 
 def _ip_blocked(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if addr in _CGNAT_NETWORK:
+        return True
     return bool(
         addr.is_private
         or addr.is_loopback

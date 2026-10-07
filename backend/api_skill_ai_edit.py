@@ -23,7 +23,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import anthropic
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
@@ -39,7 +39,6 @@ from skill_version_history import (
     list_skill_audit_trail,
     list_skill_versions,
 )
-from skill_edit_commit import commit_skill_content
 from api_skill_publish import (
     MODEL_GATEWAY_API_KEY,
     _MODEL_GATEWAY_URL,
@@ -51,6 +50,7 @@ from api_skill_publish import (
     _detect_unicode_smuggling,
     _require_owner_collaborator_or_admin,
     _skills_dir,
+    queue_skill_content_for_review,
 )
 
 # AI edit only — Sonnet 4.6; does not affect skill publish MODEL env.
@@ -357,6 +357,7 @@ def apply_ai_edit(
     slug: str,
     body: AiEditApplyRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(_db),
 ):
     auth = _auth(request)
@@ -365,6 +366,10 @@ def apply_ai_edit(
         raise HTTPException(status_code=422, detail="Invalid slug.")
 
     _require_owner_collaborator_or_admin(slug, auth, db)
+
+    skill_path = _skills_dir() / slug / "skill.md"
+    if not skill_path.exists():
+        raise HTTPException(status_code=404, detail=f"Skill '{slug}' not found.")
 
     now = datetime.now(timezone.utc)
     proposal = (
@@ -407,32 +412,40 @@ def apply_ai_edit(
     if len(ai_reason) < 10:
         ai_reason = f"AI-assisted edit: {ai_reason}"
 
+    live_hash = _content_hash(skill_path.read_text(encoding="utf-8"))
+    if live_hash != base_hash:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "skill_conflict",
+                "message": "Skill was updated by someone else. Reload and retry.",
+                "current_hash": live_hash,
+            },
+        )
+
     try:
-        version_num, new_hash = commit_skill_content(
+        result = queue_skill_content_for_review(
             db,
             slug,
-            new_content=content,
-            expected_base_hash=base_hash,
-            reason=ai_reason[:500],
+            content,
+            auth,
             source="ai_edit",
-            auth=auth,
-            skills_dir=_skills_dir(),
+            reason=ai_reason[:500],
+            background_tasks=background_tasks,
         )
     except HTTPException:
         raise
     except Exception as exc:
         logger.exception("skill_ai_edit: apply failed for %s", slug)
-        raise HTTPException(status_code=500, detail="Failed to write skill file.") from exc
+        raise HTTPException(status_code=500, detail="Failed to queue skill edit for review.") from exc
 
     db.delete(proposal)
     db.commit()
 
     return {
-        "applied": True,
-        "slug": slug,
+        **result,
         "summary": proposal.summary,
-        "content_hash": new_hash,
-        "version": version_num,
+        "content_hash": _content_hash(content),
     }
 
 
@@ -441,6 +454,7 @@ def save_skill_content(
     slug: str,
     body: ManualContentUpdate,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(_db),
 ):
     auth = _auth(request)
@@ -458,38 +472,47 @@ def save_skill_content(
     if validation_error:
         raise HTTPException(status_code=422, detail=validation_error)
 
+    live = skill_path.read_text(encoding="utf-8")
+    live_hash = _content_hash(live)
+    expected = (body.base_hash or "").strip().lower()
+    if live_hash != expected:
+        from skill_edit_commit import skill_conflict
+
+        raise skill_conflict(live_hash)
+
+    if body.content == live:
+        return {
+            "applied": False,
+            "queued_for_review": False,
+            "slug": slug,
+            "content_hash": live_hash,
+        }
+
     try:
-        version_num, new_hash = commit_skill_content(
+        result = queue_skill_content_for_review(
             db,
             slug,
-            new_content=body.content,
-            expected_base_hash=body.base_hash,
-            reason=body.reason.strip(),
+            body.content,
+            auth,
             source="manual_edit",
-            auth=auth,
-            skills_dir=_skills_dir(),
+            reason=body.reason.strip(),
+            background_tasks=background_tasks,
         )
     except HTTPException:
         raise
     except Exception as exc:
         logger.exception("skill_edit: manual save failed for %s", slug)
-        raise HTTPException(status_code=500, detail="Failed to write skill file.") from exc
-
-    if version_num == 0:
-        return {"applied": False, "slug": slug, "content_hash": new_hash}
+        raise HTTPException(status_code=500, detail="Failed to queue skill edit for review.") from exc
 
     logger.info(
-        "skill_edit: manual save slug=%s user=%s reason=%r v=%s",
+        "skill_edit: manual save queued slug=%s user=%s reason=%r",
         slug,
         auth.sub,
         body.reason.strip(),
-        version_num,
     )
     return {
-        "applied": True,
-        "slug": slug,
-        "content_hash": new_hash,
-        "version": version_num,
+        **result,
+        "content_hash": _content_hash(body.content),
     }
 
 
@@ -547,6 +570,7 @@ def revert_skill_version(
     version: int,
     body: RevertVersionRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(_db),
 ):
     auth = _auth(request)
@@ -579,27 +603,31 @@ def revert_skill_version(
     if len(reason) < 10:
         reason = f"Reverted skill content back to version {version}"
 
+    live_hash = _content_hash(live)
+    expected = (body.base_hash or "").strip().lower()
+    if live_hash != expected:
+        from skill_edit_commit import skill_conflict
+
+        raise skill_conflict(live_hash)
+
     try:
-        new_version, new_hash = commit_skill_content(
+        result = queue_skill_content_for_review(
             db,
             slug,
-            new_content=restore_content,
-            expected_base_hash=body.base_hash,
-            reason=reason[:500],
+            restore_content,
+            auth,
             source="revert",
-            auth=auth,
-            skills_dir=_skills_dir(),
+            reason=reason[:500],
+            background_tasks=background_tasks,
         )
     except HTTPException:
         raise
     except Exception as exc:
         logger.exception("skill_edit: revert failed slug=%s v=%s", slug, version)
-        raise HTTPException(status_code=500, detail="Failed to revert skill file.") from exc
+        raise HTTPException(status_code=500, detail="Failed to queue revert for review.") from exc
 
     return {
-        "applied": True,
-        "slug": slug,
+        **result,
         "reverted_to": version,
-        "version": new_version,
-        "content_hash": new_hash,
+        "content_hash": _content_hash(restore_content),
     }

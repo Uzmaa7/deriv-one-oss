@@ -16,12 +16,18 @@ export function apiFetch(input: string | URL, init: RequestInit = {}): Promise<R
   const builtIn = typeof import.meta.env?.VITE_AUTH_TOKEN === 'string'
     ? import.meta.env.VITE_AUTH_TOKEN.trim()
     : '';
+  const platformClient = typeof import.meta.env?.VITE_PLATFORM_CLIENT_TOKEN === 'string'
+    ? import.meta.env.VITE_PLATFORM_CLIENT_TOKEN.trim()
+    : '';
   if (
     builtIn
     && !hdrs.has('authorization')
     && !hdrs.has('Authorization')
   ) {
     hdrs.set('Authorization', `Bearer ${builtIn}`);
+  }
+  if (platformClient && !hdrs.has('x-platform-client')) {
+    hdrs.set('x-platform-client', platformClient);
   }
 
   const { headers: _ignoredHeaders, credentials, ...rest } = init;

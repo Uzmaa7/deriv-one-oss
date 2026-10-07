@@ -2726,7 +2726,7 @@ async def _handle_channel_instruction(
     thread_ts: str,
     sender_email: str,
 ) -> None:
-    """Handle a channel-scoped instruction from any channel member for a platform agent.
+    """Handle a channel-scoped instruction from an agent owner/collaborator.
 
     Extracts the instruction via LLM, appends it to the channel's soul_text, and
     stores it as a channel-scoped memory so it persists across sessions.
@@ -2798,6 +2798,7 @@ async def _handle_channel_instruction(
             key=memory_key,
             value=memory_value,
             channel_id=channel_id,
+            user_email=sender_email,
             source="manual",
         )
 
@@ -2822,13 +2823,11 @@ You are a memory-extraction assistant. Given a single conversation exchange betw
 
 Rules:
 - Output a JSON array of objects with keys "key", "value", "scope".
-  - scope "user"    = fact about the specific user (their preferences, context, role, etc.)
-  - scope "agent"   = a general fact the agent should remember regardless of who is asking
-  - scope "channel" = instruction or context specific to THIS channel (use when the user says how the agent should behave in this channel, what topics to cover here, etc.)
+  - scope MUST always be "user" (facts about the specific user only).
 - If nothing is worth remembering, output an empty array: []
 - Be concise. key ≤ 40 chars, value ≤ 200 chars.
 - Do NOT extract: one-off data lookups, temporary results, error messages.
-- DO extract: user preferences, recurring patterns, important context, agent-level rules, channel-specific instructions.
+- Do NOT extract agent-wide or channel-wide instructions — only user-specific preferences and context.
 - Output ONLY the JSON array — no explanation, no code fences.
 
 Exchange:
@@ -2867,10 +2866,10 @@ async def _extract_and_store_memories(
     agent_msg: str,
     channel_id: str | None = None,
 ) -> None:
-    """Fire-and-forget: ask the LLM to extract memorable facts from one exchange.
+    """Fire-and-forget: ask the LLM to extract user-scoped memorable facts.
 
-    When channel_id is provided, extracted facts with scope="channel" are stored
-    against that channel.  All errors are silently swallowed.
+    Automatic extraction never writes agent-wide or channel-wide memory.
+    All errors are silently swallowed.
     """
     if not _MODEL_GATEWAY_API_KEY or not user_email or not user_msg or not agent_msg:
         return
@@ -2908,21 +2907,17 @@ async def _extract_and_store_memories(
         for fact in facts:
             if not isinstance(fact, dict):
                 continue
-            scope = str(fact.get("scope", "user"))
             key = str(fact.get("key", "")).strip()
             value = str(fact.get("value", "")).strip()
-            if not key or not value or scope not in ("agent", "user", "channel"):
+            if not key or not value:
                 continue
-            # Channel-scope facts require a channel_id
-            if scope == "channel" and not channel_id:
-                scope = "agent"
             upsert_agent_memory(
                 agent_id=agent_id,
-                scope=scope,
+                scope="user",
                 key=key,
                 value=value,
-                user_email=user_email if scope == "user" else None,
-                channel_id=channel_id if scope == "channel" else None,
+                user_email=user_email,
+                channel_id=None,
                 source="auto",
             )
     except Exception:
@@ -4060,10 +4055,9 @@ async def _dispatch_event(
         return
 
     # Gate 3.5 — channel instruction (platform agents only).
-    # Any channel member can instruct the platform agent how to behave in THIS channel.
-    # The instruction is extracted, appended to the channel soul, and stored as memory.
+    # Only the agent owner/collaborator may change channel soul or shared channel memory.
     _is_platform = bool(getattr(agent, "is_platform_agent", False))
-    if _is_platform and _looks_like_channel_instruction(user_text):
+    if _is_platform and _is_owner_or_collaborator(agent, sender_email) and _looks_like_channel_instruction(user_text):
         _cfg_channel_name = (channel_cfg.channel_name if channel_cfg else None) or channel
         logger.info(
             "Channel instruction detected from email=%s agent=%s channel=%s",

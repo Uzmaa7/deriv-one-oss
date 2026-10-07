@@ -264,7 +264,9 @@ def build_env_from_draft(draft: dict[str, Any]) -> dict[str, str]:
         env["SECRET_ENCRYPTION_KEY"] = str(models["encryption_key"]).strip()
 
     if mode == "personal":
-        env["ENABLE_MOCK_AUTH"] = "true"
+        from auth_env_guard import mock_auth_allowed_for_setup
+
+        env["ENABLE_MOCK_AUTH"] = "true" if mock_auth_allowed_for_setup(draft) else "false"
         env["APP_ENV"] = str(core.get("app_env") or "development")
         if identity.get("mock_user_email"):
             env["MOCK_USER_EMAIL"] = str(identity["mock_user_email"]).strip()
@@ -330,6 +332,12 @@ def complete_setup(draft: dict[str, Any]) -> dict[str, Any]:
         if key.endswith("_API_KEY") or key.endswith("_TOKEN") or "SECRET" in key:
             continue
         os.environ[key] = value
+
+    from auth_env_guard import reconcile_auth_environment
+    from cf_access import reload_auth_env_flags
+
+    reconcile_auth_environment()
+    reload_auth_env_flags()
 
     db = SessionLocal()
     try:

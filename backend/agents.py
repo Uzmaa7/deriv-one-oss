@@ -411,6 +411,8 @@ class AgentScheduledTask(Base):
     last_run_status = Column(String(20), nullable=True)
     last_run_error = Column(Text, nullable=True)
     run_count = Column(Integer, default=0, nullable=False)
+    author_sub = Column(String, nullable=True)
+    author_email = Column(String(320), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     agent = relationship("Agent", back_populates="scheduled_tasks")
@@ -1830,6 +1832,10 @@ def init_agent_tables(engine) -> None:
                 conn.execute(sa_text("ALTER TABLE agent_scheduled_tasks ADD COLUMN report_prompt TEXT"))
             if "last_run_error" not in task_cols:
                 conn.execute(sa_text("ALTER TABLE agent_scheduled_tasks ADD COLUMN last_run_error TEXT"))
+            if "author_sub" not in task_cols:
+                conn.execute(sa_text("ALTER TABLE agent_scheduled_tasks ADD COLUMN author_sub TEXT"))
+            if "author_email" not in task_cols:
+                conn.execute(sa_text("ALTER TABLE agent_scheduled_tasks ADD COLUMN author_email TEXT"))
         # Migrate slack_oauth_sessions table
         if _table_exists(conn, "slack_oauth_sessions"):
             sess_cols = _agent_cols_for(conn, "slack_oauth_sessions")
@@ -1871,6 +1877,34 @@ def _agent_cols_for(conn, table: str) -> set[str]:
 
 
 # ── Serialisation ────────────────────────────────────────────────────────────
+
+def agent_to_public_dict(a: Agent) -> dict:
+    """Minimal agent metadata for callers without owner/collaborator/approved access."""
+    return {
+        "id": a.id,
+        "name": a.name,
+        "description": a.description,
+        "avatar_url": a.avatar_url,
+        "status": a.status,
+        "agent_type": a.agent_type,
+        "trigger_mode": a.trigger_mode,
+        "creation_method": getattr(a, "creation_method", "manual"),
+        "is_platform_agent": bool(getattr(a, "is_platform_agent", False)),
+        "session_count": a.session_count,
+        "scheduled_task_count": len(a.scheduled_tasks) if a.scheduled_tasks else 0,
+        "created_at": a.created_at.isoformat(),
+        "updated_at": a.updated_at.isoformat(),
+        "has_signing_secret": bool(getattr(a, "signing_secret_ref", None)),
+        "has_gateway_api_key": bool(getattr(a, "gateway_api_key_ref", None)),
+    }
+
+
+def agent_dict_for_access(a: Agent, access: str) -> dict:
+    """Return full configuration only for privileged access levels."""
+    if access in ("owner", "collaborator", "approved"):
+        return agent_to_dict(a)
+    return agent_to_public_dict(a)
+
 
 def agent_to_dict(a: Agent) -> dict:
     """Public representation of an agent. NEVER includes raw token material."""

@@ -57,6 +57,18 @@ BANNED_CALL_NAMES = frozenset({
     "breakpoint",
     "globals",
     "locals",
+    "system",
+    "popen",
+    "spawn",
+    "spawnl",
+    "spawnv",
+    "execl",
+    "execle",
+    "execlp",
+    "execv",
+    "execve",
+    "execvp",
+    "urlopen",
 })
 
 BANNED_IMPORT_ROOTS = frozenset({

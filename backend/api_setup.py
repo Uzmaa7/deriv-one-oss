@@ -86,15 +86,19 @@ async def validate_models(body: ValidateModelsBody, _: Any = Depends(_admin)) ->
     if not url:
         raise HTTPException(status_code=422, detail="gateway_url is required")
     from model_gateway import gateway_auth_headers, resolve_models_list_url
+    from url_fetch_guard import async_fetch_response, validate_fetch_url
 
     models_url = resolve_models_list_url(url)
+    ok, err = validate_fetch_url(models_url)
+    if not ok:
+        return {"ok": False, "error": err, "models_url": models_url}
 
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            resp = await client.get(
-                models_url,
-                headers=gateway_auth_headers(body.gateway_api_key),
-            )
+        resp = await async_fetch_response(
+            models_url,
+            headers=gateway_auth_headers(body.gateway_api_key),
+            timeout=15.0,
+        )
         if resp.status_code >= 400:
             return {
                 "ok": False,

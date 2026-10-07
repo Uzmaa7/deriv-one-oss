@@ -43,6 +43,12 @@ POLICY_AUD = os.environ.get("POLICY_AUD", "").strip()
 
 ENABLE_MOCK_AUTH = _env_bool("ENABLE_MOCK_AUTH")
 
+
+def reload_auth_env_flags() -> None:
+    """Re-read auth flags from os.environ after platform.env is applied."""
+    global ENABLE_MOCK_AUTH
+    ENABLE_MOCK_AUTH = _env_bool("ENABLE_MOCK_AUTH")
+
 # When true, any valid JWT (regardless of groups claim) receives member access.
 # Admins still need their group in the token.
 AUTH_OPEN_MEMBERSHIP = _env_bool("AUTH_OPEN_MEMBERSHIP") or _env_bool("CF_ACCESS_OPEN")
@@ -88,9 +94,13 @@ def _looks_like_cloudflare_access_issuer(issuer: str) -> bool:
 def _jwks_uri_from_oidc_discovery(issuer: str) -> Optional[str]:
     discovery_url = f"{issuer.rstrip('/')}/.well-known/openid-configuration"
     try:
-        import requests
+        from url_fetch_guard import sync_fetch_response, validate_fetch_url
 
-        resp = requests.get(discovery_url, timeout=10)
+        ok, err = validate_fetch_url(discovery_url)
+        if not ok:
+            logger.warning("OIDC discovery blocked for %s: %s", discovery_url, err)
+            return None
+        resp = sync_fetch_response(discovery_url, headers={}, timeout=10.0)
         resp.raise_for_status()
         body = resp.json()
         jwks_uri = body.get("jwks_uri")

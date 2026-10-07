@@ -280,6 +280,10 @@ async def dispatch_scheduled_task(agent_id: str, task_id: str, *, manual: bool =
         prompt = (task.prompt or "").strip()
         output_channel = (task.output_channel or "").strip()
         creator_email = (agent.creator_email or "").strip()
+        task_author_email = (
+            (getattr(task, "author_email", None) or "").strip()
+            or creator_email
+        )
         if not prompt or not output_channel:
             logger.warning("Scheduled task %s missing prompt or output_channel", task_id)
             _mark_task_run(
@@ -312,7 +316,11 @@ async def dispatch_scheduled_task(agent_id: str, task_id: str, *, manual: bool =
     except Exception:
         skill_ids = []
 
-    accessible_skill_slugs = await _filter_accessible_skills(creator_email, agent, skill_override=skill_ids)
+    accessible_skill_slugs = await _filter_accessible_skills(
+        task_author_email,
+        agent,
+        skill_override=skill_ids,
+    )
     restricted_skill_slugs = [s for s in skill_ids if s not in accessible_skill_slugs]
 
     display_name = agent.name

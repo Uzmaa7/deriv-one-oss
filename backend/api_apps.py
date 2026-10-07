@@ -327,9 +327,13 @@ async def _ensure_skill_ids_granted(
         )
 
 
-async def _load_granted_skill_secrets(app: App) -> dict[str, str]:
-    """Load skill secrets only for skills the app owner is allowed to use."""
-    accessible = await _accessible_skill_slugs(app.owner_sub, app.creator_email or "")
+async def _load_granted_skill_secrets(
+    app: App,
+    viewer_sub: str,
+    viewer_email: str,
+) -> dict[str, str]:
+    """Load skill secrets only for skills the acting viewer is allowed to use."""
+    accessible = await _accessible_skill_slugs(viewer_sub, viewer_email)
     merged: dict[str, str] = {}
     for slug in _load_json_list(app.skill_ids):
         if slug not in accessible:
@@ -1196,6 +1200,22 @@ def _check_read_access(app: Optional[App], owner_sub: str, email: str = "") -> A
     return app
 
 
+def _check_owner_or_app_admin_access(app: Optional[App], owner_sub: str, email: str = "") -> App:
+    """Restrict source/build/metadata routes to the app owner or named app admins."""
+    if not app or _app_role(app, owner_sub, email) != "admin":
+        raise HTTPException(status_code=403, detail="Owner or app admin access required.")
+    return app
+
+
+def _app_dict_for_role(app: App, role: str) -> dict:
+    """Return a full owner/admin projection or a minimal workspace-member view."""
+    if role == "admin":
+        return _app_dict_with_env_keys(app)
+    from apps_models import app_to_workspace_dict
+
+    return app_to_workspace_dict(app)
+
+
 def _record_viewer(app: App, owner_sub: str, email: str) -> "RecordViewer":
     from lab_records import RecordViewer
 
@@ -1531,7 +1551,13 @@ def list_apps(request: Request, owner_sub: str = Depends(deps_owner_sub)):
                 allowed = [e.lower() for e in _load_json_list(a.allowed_users)]
                 if email in allowed:
                     visible.append((a, is_mine))
-        return [{**_app_dict_with_env_keys(a), "is_mine": is_mine} for a, is_mine in visible]
+        return [
+            {
+                **_app_dict_for_role(a, _app_role(a, owner_sub, email) or "member"),
+                "is_mine": is_mine,
+            }
+            for a, is_mine in visible
+        ]
     finally:
         db.close()
 
@@ -1622,7 +1648,8 @@ def get_app(app_id: str, request: Request, owner_sub: str = Depends(deps_owner_s
     db = SessionLocal()
     try:
         app = _check_read_access(db.get(App, app_id), owner_sub, email)
-        return _app_dict_with_env_keys(app)
+        role = _app_role(app, owner_sub, email) or "member"
+        return _app_dict_for_role(app, role)
     finally:
         db.close()
 
@@ -1753,7 +1780,7 @@ def list_files(app_id: str, request: Request, owner_sub: str = Depends(deps_owne
     email = getattr(getattr(request.state, "auth", None), "email", "") or ""
     db = SessionLocal()
     try:
-        app = _check_read_access(db.get(App, app_id), owner_sub, email)
+        app = _check_owner_or_app_admin_access(db.get(App, app_id), owner_sub, email)
         files = _filter_visible_app_files(_list_app_files(app_id), app, owner_sub)
         return {"files": files}
     finally:
@@ -1765,7 +1792,7 @@ def get_file_content(app_id: str, path: str, request: Request, owner_sub: str = 
     email = getattr(getattr(request.state, "auth", None), "email", "") or ""
     db = SessionLocal()
     try:
-        _check_read_access(db.get(App, app_id), owner_sub, email)
+        _check_owner_or_app_admin_access(db.get(App, app_id), owner_sub, email)
         content = _read_app_file(app_id, path)
         return {"path": path, "content": content}
     finally:
@@ -1781,7 +1808,7 @@ def export_app_zip(app_id: str, request: Request, owner_sub: str = Depends(deps_
     email = getattr(getattr(request.state, "auth", None), "email", "") or ""
     db = SessionLocal()
     try:
-        app = _check_read_access(db.get(App, app_id), owner_sub, email)
+        app = _check_owner_or_app_admin_access(db.get(App, app_id), owner_sub, email)
         slug = app.slug or "lab-app"
     finally:
         db.close()
@@ -2092,7 +2119,7 @@ def list_data_sources(
     email = getattr(getattr(request.state, "auth", None), "email", "") or ""
     db = SessionLocal()
     try:
-        _check_read_access(db.get(App, app_id), owner_sub, email)
+        _check_owner_or_app_admin_access(db.get(App, app_id), owner_sub, email)
     finally:
         db.close()
     return {"sources": _read_data_manifest(app_id)}
@@ -2316,7 +2343,13 @@ async def _run_snippet_for_builder(app_id: str, code: str) -> str:
     try:
         run_app = db2.get(App, app_id)
         if run_app:
-            merged_secrets.update(await _load_granted_skill_secrets(run_app))
+            merged_secrets.update(
+                await _load_granted_skill_secrets(
+                    run_app,
+                    run_app.owner_sub,
+                    run_app.creator_email or "",
+                )
+            )
             merged_secrets.update(_decrypt_env_config(run_app.env_config))
     finally:
         db2.close()
@@ -2862,7 +2895,7 @@ async def get_build_status(
     email = getattr(getattr(request.state, "auth", None), "email", "") or ""
     db = SessionLocal()
     try:
-        app = _check_read_access(db.get(App, app_id), owner_sub, email)
+        app = _check_owner_or_app_admin_access(db.get(App, app_id), owner_sub, email)
         if app.build_phase == "building" and _is_build_stale(app):
             app.build_phase = "failed"
             timeline = _load_build_timeline(app)
@@ -2911,6 +2944,7 @@ async def run_app_function(
     try:
         app = _check_read_access(db.get(App, app_id), owner_sub, email)
         _check_app_allows_run(app)
+        await _ensure_skill_ids_granted(owner_sub, email, _load_json_list(app.skill_ids))
     finally:
         db.close()
 
@@ -2932,7 +2966,9 @@ async def run_app_function(
     try:
         run_app = db2.get(App, app_id)
         if run_app:
-            merged_secrets.update(await _load_granted_skill_secrets(run_app))
+            merged_secrets.update(
+                await _load_granted_skill_secrets(run_app, owner_sub, email)
+            )
             merged_secrets.update(_decrypt_env_config(run_app.env_config))
     finally:
         db2.close()
@@ -3265,7 +3301,13 @@ async def _serve_app_file_inner(slug: str, rel_path: str, request: Request):
             cache_header = "no-cache, no-store, must-revalidate"
         if Path(clean).suffix.lower() in no_cache_exts:
             data = _substitute_app_placeholders(data, app.id)
-        return _Response(content=data, media_type=mime, headers={"Cache-Control": cache_header})
+        from lab_app_api_guard import lab_app_response_headers
+
+        return _Response(
+            content=data,
+            media_type=mime,
+            headers={"Cache-Control": cache_header, **lab_app_response_headers()},
+        )
 
     # Local filesystem fallback (docker-compose / local dev)
     file_path = _sanitise_path(app.id, clean)
@@ -3283,10 +3325,12 @@ async def _serve_app_file_inner(slug: str, rel_path: str, request: Request):
         from fastapi.responses import Response as _Response
         raw = file_path.read_bytes()
         raw = _substitute_app_placeholders(raw, app.id)
+        from lab_app_api_guard import lab_app_response_headers
+
         return _Response(
             content=raw,
             media_type=_get_mime(file_path),
-            headers={"Cache-Control": cache_header},
+            headers={"Cache-Control": cache_header, **lab_app_response_headers()},
         )
 
     return FileResponse(

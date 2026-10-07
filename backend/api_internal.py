@@ -116,6 +116,9 @@ def sign_service_token(service_id: str, ttl_seconds: int = 86_400) -> str:
     return _pyjwt.encode(payload, _INTERNAL_SIGNING_SECRET, algorithm="HS256")
 
 
+_SECRETS_SERVICE_ALLOWLIST = frozenset({"slack-relay-dmz"})
+
+
 def _verify_invocation_context(token: str) -> dict:
     """Verify and decode the invocation context JWT.
 
@@ -129,17 +132,29 @@ def _verify_invocation_context(token: str) -> dict:
     )
 
 
+def _verify_secrets_service_token(token: str) -> dict:
+    """Verify a relay-only service token for /internal/secrets."""
+    claims = _verify_invocation_context(token)
+    service = claims.get("service")
+    if not isinstance(service, str) or not service.strip():
+        raise _pyjwt.InvalidTokenError("service claim required")
+    if service.strip() not in _SECRETS_SERVICE_ALLOWLIST:
+        raise _pyjwt.InvalidTokenError("token service is not authorized for secrets access")
+    if claims.get("sender_email") or claims.get("source_agent_id"):
+        raise _pyjwt.InvalidTokenError("agent invocation tokens cannot access secrets")
+    return claims
+
+
 @router.get("/internal/secrets/{app_id}")
 async def get_signing_secret(app_id: str, request: Request) -> JSONResponse:
     """Return the Slack signing secret for ``app_id``.
 
     Authentication
     ──────────────
-    Caller must supply a valid HS256 JWT in the ``X-Invoke-Context`` header,
-    signed with ``INTERNAL_SIGNING_SECRET``.  The token may be either a
-    service token (created by ``sign_service_token``) or an invocation context
-    token (created by ``sign_invocation_context``).  Requests without a valid,
-    non-expired token receive HTTP 403.
+    Caller must supply a valid HS256 service JWT in the ``X-Invoke-Context``
+    header, signed with ``INTERNAL_SIGNING_SECRET`` and created by
+    ``sign_service_token`` for an allowlisted relay service. Agent invocation
+    tokens are rejected. Requests without a valid, non-expired token receive HTTP 403.
 
     Looks up the Agent row by ``slack_app_id``, then resolves the
     ``signing_secret_ref`` from the vault.
@@ -153,7 +168,7 @@ async def get_signing_secret(app_id: str, request: Request) -> JSONResponse:
         logger.error("INTERNAL_SIGNING_SECRET not set — secrets endpoint rejected")
         raise HTTPException(status_code=503, detail="Service not configured.")
     try:
-        _verify_invocation_context(ctx_header)
+        _verify_secrets_service_token(ctx_header)
     except _pyjwt.ExpiredSignatureError:
         logger.warning("Secrets request for app_id=%s rejected: token expired", app_id)
         raise HTTPException(status_code=403, detail="Invocation token expired.")

@@ -1,8 +1,16 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
+
+function platformClientToken(env: Record<string, string>): string {
+  const secret =
+    env.PLATFORM_UI_ATTESTATION_SECRET?.trim()
+    || 'dev-only-platform-ui-attestation';
+  return crypto.createHmac('sha256', secret).update('platform-ui-v1').digest('hex');
+}
 
 // `@/lib/*` modules are split across two directories: the shadcn-era helpers at
 // root lib/ and the newer app helpers at src/lib/. Search root first, then src,
@@ -33,6 +41,9 @@ export default defineConfig(({mode}) => {
   const apiTarget = `http://127.0.0.1:${apiPort}`;
   return {
     plugins: [react(), tailwindcss()],
+    define: {
+      'import.meta.env.VITE_PLATFORM_CLIENT_TOKEN': JSON.stringify(platformClientToken(env)),
+    },
     resolve: {
       alias: [
         // shadcn UI components live at root components/ui

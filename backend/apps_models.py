@@ -99,6 +99,22 @@ class App(Base):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def app_to_workspace_dict(a: App) -> dict:
+    """Minimal app metadata for workspace/shared viewers (no source or build internals)."""
+    return {
+        "id": a.id,
+        "slug": a.slug,
+        "name": a.name,
+        "description": a.description,
+        "visibility": a.visibility,
+        "status": a.status,
+        "tech_stack": a.tech_stack,
+        "mode": getattr(a, "mode", "standard") or "standard",
+        "created_at": a.created_at.isoformat(),
+        "updated_at": a.updated_at.isoformat(),
+    }
+
+
 def app_to_dict(a: App, env_var_keys: Optional[list] = None) -> dict:
     """Public serialisation of an App row. Never includes raw file content or secret values."""
     return {

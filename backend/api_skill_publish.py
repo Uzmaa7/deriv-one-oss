@@ -1397,17 +1397,12 @@ def _parse_verdict(raw_text: str) -> tuple[str, str]:
         except (ValueError, TypeError):
             pass
 
-    # Last resort: keyword scan
     text_lower = raw_text.lower()
-    if "\"pass\"" in text_lower or "'pass'" in text_lower:
-        return REVIEW_STATUS_PASS, "Approved by security reviewer."
     if "\"fail\"" in text_lower or "'fail'" in text_lower:
         return REVIEW_STATUS_FAIL, raw_text[:500]
-    if "\"modify\"" in text_lower or "'modify'" in text_lower:
-        return REVIEW_STATUS_MODIFY, raw_text[:500]
 
     logger.warning("AI reviewer: could not parse verdict from response: %r", raw_text[:200])
-    return REVIEW_STATUS_MODIFY, "Review inconclusive — please resubmit or contact the platform team."
+    return REVIEW_STATUS_FAIL, "Review inconclusive — treating as failure; resubmit or contact the platform team."
 
 
 def _parse_preflight_verdict(raw_text: str) -> tuple[str, str, list[str]]:
@@ -1464,18 +1459,13 @@ def _parse_preflight_verdict(raw_text: str) -> tuple[str, str, list[str]]:
         except (ValueError, TypeError):
             pass
 
-    # Last resort: keyword scan (keys not recoverable)
     logger.warning("Preflight reviewer: falling back to keyword scan for response: %r", raw_text[:400])
     text_lower = raw_text.lower()
-    if '"pass"' in text_lower or "'pass'" in text_lower:
-        return REVIEW_STATUS_PASS, "Approved by security reviewer.", []
     if '"fail"' in text_lower or "'fail'" in text_lower:
         return REVIEW_STATUS_FAIL, raw_text[:500], []
-    if '"modify"' in text_lower or "'modify'" in text_lower:
-        return REVIEW_STATUS_MODIFY, raw_text[:500], []
 
     logger.warning("Preflight reviewer: could not parse verdict from response: %r", raw_text[:200])
-    return REVIEW_STATUS_MODIFY, "Review inconclusive — please resubmit or contact the platform team.", []
+    return REVIEW_STATUS_FAIL, "Review inconclusive — treating as failure; resubmit or contact the platform team.", []
 
 
 def _safe_json_loads(value: Optional[str], default):
@@ -1917,6 +1907,105 @@ async def patch_skill_name(
 
     acl = get_skill_acl(slug)
     return {"slug": slug, "name": skill_display_name(acl, slug)}
+
+
+# ── Content-only edit (re-review) ───────────────────────────────────────────────
+
+
+def queue_skill_content_for_review(
+    db: Session,
+    slug: str,
+    skill_content: str,
+    auth,
+    *,
+    source: str,
+    reason: str,
+    background_tasks: BackgroundTasks,
+) -> dict:
+    """Submit a content-only change for AI re-review without mutating the live skill."""
+    slug = slug.strip().lower()
+    pending_edit = (
+        db.query(SkillSubmission)
+        .filter(
+            SkillSubmission.proposed_slug == slug,
+            SkillSubmission.review_status.in_(
+                [REVIEW_STATUS_PENDING, REVIEW_STATUS_REVIEWING, REVIEW_STATUS_AWAITING_CONFIRMATION]
+            ),
+        )
+        .first()
+    )
+    if pending_edit:
+        raise HTTPException(
+            status_code=409,
+            detail="An edit for this skill is already pending review or awaiting confirmation.",
+        )
+
+    owner_row = (
+        db.query(SkillSubmission)
+        .filter(
+            SkillSubmission.proposed_slug == slug,
+            SkillSubmission.review_status == REVIEW_STATUS_PASS,
+        )
+        .order_by(SkillSubmission.submitted_at.asc())
+        .first()
+    )
+    if owner_row is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Skill ownership record not found; cannot submit content for review.",
+        )
+
+    editor_name, editor_email, editor_role = resolve_edit_actor(db, slug, auth)
+    desc = (owner_row.description or "").strip() or f"Content update ({source})"
+    display_name = owner_row.display_name or slug
+
+    submission = SkillSubmission(
+        id=str(uuid.uuid4()),
+        user_id=owner_row.user_id,
+        user_email=owner_row.user_email,
+        user_name=owner_row.user_name or owner_row.user_email,
+        user_department=owner_row.user_department or "",
+        proposed_slug=slug,
+        departments=owner_row.departments,
+        integrations=owner_row.integrations,
+        risk_level=owner_row.risk_level,
+        cross_dept_policy=owner_row.cross_dept_policy,
+        cross_dept_default_grant=owner_row.cross_dept_default_grant,
+        cross_dept_approvers=owner_row.cross_dept_approvers,
+        description=desc,
+        display_name=display_name,
+        skill_file_content=skill_content,
+        pending_secrets=None,
+        review_status=REVIEW_STATUS_PENDING,
+        submitted_at=datetime.now(timezone.utc),
+        created_at=datetime.now(timezone.utc),
+        editor_sub=auth.sub,
+        editor_email=editor_email or auth.email,
+        editor_name=editor_name,
+        editor_role=editor_role,
+    )
+    db.add(submission)
+    db.commit()
+    db.refresh(submission)
+
+    background_tasks.add_task(_run_ai_review_edit, submission.id)
+    logger.info(
+        "skill_content_review: queued slug=%s source=%s editor=%s reason=%r",
+        slug,
+        source,
+        auth.sub,
+        reason[:120],
+    )
+    return {
+        "queued_for_review": True,
+        "applied": False,
+        "submission_id": submission.id,
+        "slug": slug,
+        "message": (
+            "Content change submitted for security review. "
+            "The current published version stays live until approval."
+        ),
+    }
 
 
 # ── Edit skill (re-review) ─────────────────────────────────────────────────────

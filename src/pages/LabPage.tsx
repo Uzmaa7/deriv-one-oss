@@ -2513,7 +2513,7 @@ function PreviewPanel({
           src={`/apps/${app.slug}/`}
           className="flex-1 w-full border-0 bg-surface h-0"
           title={`Preview: ${app.name}`}
-          sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
+          sandbox="allow-scripts allow-forms allow-modals"
         />
       )}
     </div>

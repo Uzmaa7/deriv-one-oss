@@ -1000,10 +1000,13 @@ def list_agents(request: Request, owner_sub: str = Depends(deps_owner_sub)):
             .order_by(Agent.created_at.desc())
             .all()
         )
+        from agents import agent_dict_for_access
+
         result = []
         for a in rows:
-            d = agent_to_dict(a)
-            d["my_access"] = _my_access_status(a, owner_sub, user_email, db)
+            access = _my_access_status(a, owner_sub, user_email, db)
+            d = agent_dict_for_access(a, access)
+            d["my_access"] = access
             _enrich_avatar(d, db)
             result.append(d)
         return result
@@ -1025,8 +1028,11 @@ def get_agent_public(agent_id: str, request: Request, owner_sub: str = Depends(d
         agent = db.query(Agent).filter(Agent.id == agent_id, Agent.status != "decommissioned").first()
         if not agent:
             raise HTTPException(status_code=404, detail="Agent not found.")
-        d = agent_to_dict(agent)
-        d["my_access"] = _my_access_status(agent, owner_sub, user_email, db)
+        from agents import agent_dict_for_access
+
+        access = _my_access_status(agent, owner_sub, user_email, db)
+        d = agent_dict_for_access(agent, access)
+        d["my_access"] = access
         _enrich_avatar(d, db)
         return d
     finally:
@@ -1926,6 +1932,8 @@ def create_task(
             is_active=body.is_active,
             report_enabled=body.report_enabled,
             report_prompt=_normalise_report_prompt(body.report_enabled, body.report_prompt),
+            author_sub=owner_sub,
+            author_email=(user_email or "").strip().lower() or None,
         )
         db.add(task)
         db.commit()
@@ -1974,6 +1982,8 @@ def update_task(
         if body.report_prompt is not None:
             enabled = body.report_enabled if body.report_enabled is not None else task.report_enabled
             task.report_prompt = _normalise_report_prompt(enabled, body.report_prompt)
+        task.author_sub = owner_sub
+        task.author_email = (user_email or "").strip().lower() or None
         db.commit()
         db.refresh(task)
         unschedule_agent_task(task_id)
