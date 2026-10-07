@@ -53,7 +53,10 @@
     "tailwind-merge": "3.5.0",
     "@inquirer/confirm": "6.0.12",
     "@inquirer/core": "11.1.9",
-    "baseline-browser-mapping": "2.11.26"
+    "baseline-browser-mapping": "2.11.26",
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "proxy-addr": "2.0.8",
+    "source-map-js": "1.2.2"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
