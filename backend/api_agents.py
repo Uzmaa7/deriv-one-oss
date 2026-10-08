@@ -1280,23 +1280,14 @@ def get_agent(agent_id: str, request: Request, owner_sub: str = Depends(deps_own
             raise HTTPException(status_code=404, detail="Agent not found.")
         user_email = _user_email_from_request(request)
         access = _my_access_status(agent, owner_sub, user_email, db)
-        if access in ("owner", "collaborator"):
-            d = agent_to_dict(agent)
+        if access in ("owner", "collaborator", "approved"):
+            from agents import agent_dict_for_access
+
+            d = agent_dict_for_access(agent, access)
             d["my_access"] = access
             skill_ids = d.get("skill_ids") or []
             source_ids = d.get("skill_index_source_skill_ids") or []
             d["skill_index_stale"] = index_is_stale(skill_ids, source_ids) if skill_ids else False
-            _enrich_avatar(d, db)
-            return d
-        if access == "approved":
-            # Approved users get read-only metadata — no secret refs or tokens.
-            d = agent_to_dict(agent)
-            d["my_access"] = "approved"
-            skill_ids = d.get("skill_ids") or []
-            source_ids = d.get("skill_index_source_skill_ids") or []
-            d["skill_index_stale"] = index_is_stale(skill_ids, source_ids) if skill_ids else False
-            for sensitive in ("slack_bot_token", "slack_app_token", "vault_secret_ref"):
-                d.pop(sensitive, None)
             _enrich_avatar(d, db)
             return d
         raise HTTPException(status_code=403, detail="Access denied.")

@@ -334,6 +334,17 @@ async def execute_in_sandbox(
     Returns:
         {"stdout": str, "stderr": str, "returncode": int}
     """
+    from sandbox_safety import validate_sandbox_python
+
+    blocked = validate_sandbox_python(code)
+    if blocked:
+        return {
+            "stdout": "",
+            "stderr": blocked,
+            "returncode": 1,
+            "files": {},
+        }
+
     full_code = _build_code(code, workspace_dir, env_extras, artifacts=artifacts)
 
     sandbox = get_sandbox()

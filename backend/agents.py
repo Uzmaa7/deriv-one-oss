@@ -1899,10 +1899,25 @@ def agent_to_public_dict(a: Agent) -> dict:
     }
 
 
+def _privileged_agent_secret_fields(a: Agent) -> dict[str, object]:
+    """Vault resource names — only for owners/collaborators on private agent routes."""
+    return {
+        "xoxb_secret_ref": a.xoxb_secret_ref,
+        "xapp_secret_ref": a.xapp_secret_ref,
+        "signing_secret_ref": getattr(a, "signing_secret_ref", None),
+        "gateway_api_key_ref": getattr(a, "gateway_api_key_ref", None),
+    }
+
+
 def agent_dict_for_access(a: Agent, access: str) -> dict:
     """Return full configuration only for privileged access levels."""
-    if access in ("owner", "collaborator", "approved"):
-        return agent_to_dict(a)
+    if access in ("owner", "collaborator"):
+        d = agent_to_dict(a)
+        d.update(_privileged_agent_secret_fields(a))
+        return d
+    if access == "approved":
+        d = agent_to_dict(a)
+        return d
     return agent_to_public_dict(a)
 
 
@@ -1919,13 +1934,8 @@ def agent_to_dict(a: Agent) -> dict:
         "slack_app_id": a.slack_app_id,
         "slack_bot_user_id": a.slack_bot_user_id,
         "slack_team_id": a.slack_team_id,
-        # Refs are resource names, not credentials — safe to expose so the UI
-        # can show "stored / rotate".
-        "xoxb_secret_ref": a.xoxb_secret_ref,
-        "xapp_secret_ref": a.xapp_secret_ref,
-        "signing_secret_ref": getattr(a, "signing_secret_ref", None),
-        # Ref is a resource name, not the key — safe to expose so UI can show stored/rotate.
-        "gateway_api_key_ref": getattr(a, "gateway_api_key_ref", None),
+        "has_xoxb_secret": bool(a.xoxb_secret_ref),
+        "has_xapp_secret": bool(a.xapp_secret_ref),
         "has_gateway_api_key": bool(getattr(a, "gateway_api_key_ref", None)),
         "has_signing_secret": bool(getattr(a, "signing_secret_ref", None)),
         "creation_method": getattr(a, "creation_method", "manual"),

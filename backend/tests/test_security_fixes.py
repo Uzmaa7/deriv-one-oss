@@ -192,7 +192,7 @@ def test_validate_fetch_url_blocks_cgnat():
 
 
 def test_agent_public_dict_hides_sensitive_fields():
-    from agents import agent_to_dict, agent_to_public_dict
+    from agents import agent_dict_for_access, agent_to_dict, agent_to_public_dict
 
     agent = SimpleNamespace(
         id="agent-1",
@@ -240,11 +240,52 @@ def test_agent_public_dict_hides_sensitive_fields():
         is_platform_agent=False,
     )
     public = agent_to_public_dict(agent)
-    full = agent_to_dict(agent)
+    owner = agent_dict_for_access(agent, "owner")
+    approved = agent_dict_for_access(agent, "approved")
     assert "soul_text" not in public
     assert "signing_secret_ref" not in public
     assert public["has_signing_secret"] is True
-    assert full["soul_text"] == "hidden instructions"
+    assert owner["signing_secret_ref"] == "vault/signing"
+    assert owner["soul_text"] == "hidden instructions"
+    assert "signing_secret_ref" not in approved
+    assert agent_to_dict(agent)["has_xoxb_secret"] is True
+    assert "xoxb_secret_ref" not in agent_to_dict(agent)
+
+
+def test_validate_sandbox_python_blocks_pwd_import():
+    from sandbox_safety import validate_sandbox_python
+
+    err = validate_sandbox_python("import pwd\nprint(pwd.getpwuid(0))")
+    assert err is not None
+    assert "pwd" in err
+
+
+def test_validate_sandbox_python_blocks_os_spawnv():
+    from sandbox_safety import validate_sandbox_python
+
+    err = validate_sandbox_python("import os\nos.spawnv(os.P_WAIT, '/bin/sh', ['sh'])")
+    assert err is not None
+
+
+@pytest.mark.asyncio
+async def test_assert_skill_content_blocks_catalogue_inaccessible(monkeypatch):
+    from fastapi import HTTPException
+
+    from skill_content_access import assert_skill_content_readable
+
+    row = SimpleNamespace(slug="locked-skill", accessible=False)
+
+    async def _fake_resolve(_sub, _email):
+        return ([row], {}, frozenset())
+
+    monkeypatch.setattr(
+        "skill_content_access.resolve_user_skill_access",
+        _fake_resolve,
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await assert_skill_content_readable("sub", "user@example.com", "locked-skill")
+    assert exc.value.status_code == 404
 
 
 def test_artifact_gate_blocks_os_system():
