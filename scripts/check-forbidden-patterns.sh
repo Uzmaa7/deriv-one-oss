@@ -43,7 +43,8 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   fi
 fi
 
-check_absent "Deriv gateway host" '@deriv\.(ai|com|dev)'
+# Hostnames/URLs only — allow security@deriv.com in SECURITY.md / CODE_OF_CONDUCT.md
+check_absent "Deriv gateway host" '([a-zA-Z0-9_*.-]+\.)deriv\.(ai|com|dev)|https?://[^[:space:]"'\'']*deriv\.(ai|com|dev)'
 check_absent "LiteLLM host" 'litellm'
 check_absent "OpenAI-style API key" 'sk-[A-Za-z0-9]{20,}'
 check_absent "Likely Fernet key in env" 'SECRET_ENCRYPTION_KEY=[A-Za-z0-9+/=]{20,}'

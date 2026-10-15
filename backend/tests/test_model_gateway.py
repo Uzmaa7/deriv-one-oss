@@ -68,8 +68,12 @@ class ModelGatewayTests(unittest.TestCase):
         os.environ["MODEL_GATEWAY_URL"] = "http://127.0.0.1:1234"
         os.environ.pop("MODEL", None)
         try:
-            model = default_gateway_chat_model()
-            self.assertTrue(model)
+            with mock.patch(
+                "model_gateway.list_gateway_model_ids",
+                return_value=["text-embedding-3-small", "local-chat-model"],
+            ):
+                model = default_gateway_chat_model()
+            self.assertEqual(model, "local-chat-model")
             self.assertNotIn("embed", model.lower())
         finally:
             if prev_url is None:

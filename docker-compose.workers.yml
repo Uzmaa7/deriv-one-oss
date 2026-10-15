@@ -15,7 +15,8 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file:
-      - backend/.env
+      - path: backend/.env
+        required: false
     environment:
       HUB_DATABASE_PATH: ${HUB_DATABASE_PATH:-/data/hub.db}
       BLOB_ROOT: /data/blobs
@@ -38,7 +39,8 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file:
-      - backend/.env
+      - path: backend/.env
+        required: false
     environment:
       HUB_DATABASE_PATH: ${HUB_DATABASE_PATH:-/data/hub.db}
       BLOB_ROOT: /data/blobs
@@ -59,7 +61,8 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file:
-      - backend/.env
+      - path: backend/.env
+        required: false
     environment:
       HUB_DATABASE_PATH: ${HUB_DATABASE_PATH:-/data/hub.db}
       BLOB_ROOT: /data/blobs

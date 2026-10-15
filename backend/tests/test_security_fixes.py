@@ -267,8 +267,9 @@ def test_validate_sandbox_python_blocks_os_spawnv():
     assert err is not None
 
 
-@pytest.mark.asyncio
-async def test_assert_skill_content_blocks_catalogue_inaccessible(monkeypatch):
+def test_assert_skill_content_blocks_catalogue_inaccessible(monkeypatch):
+    import asyncio
+
     from fastapi import HTTPException
 
     from skill_content_access import assert_skill_content_readable
@@ -284,7 +285,9 @@ async def test_assert_skill_content_blocks_catalogue_inaccessible(monkeypatch):
     )
 
     with pytest.raises(HTTPException) as exc:
-        await assert_skill_content_readable("sub", "user@example.com", "locked-skill")
+        asyncio.run(
+            assert_skill_content_readable("sub", "user@example.com", "locked-skill")
+        )
     assert exc.value.status_code == 404
 
 
