@@ -1,0 +1,47 @@
+{
+    "display_information": {
+        "name": "Helpdesk Assistant",
+        "description": "Answers questions about tickets and queues from live data, scoped to what the asker is allowed to see.",
+        "background_color": "#3a4d87",
+        "long_description": "An example Slack app manifest for an agent registered on this platform. Replace the names and descriptions with your own, then paste it into Slack's app-creation flow.\r\n\r\nThe agent signs in against your workspace so it can match a Slack user to a person, and every answer is checked server-side against that person's access before it is sent. It responds in channels when mentioned, and in direct messages for private questions."
+    },
+    "features": {
+        "bot_user": {
+            "display_name": "Helpdesk Assistant",
+            "always_online": false
+        }
+    },
+    "oauth_config": {
+        "scopes": {
+            "bot": [
+                "channels:read",
+                "app_mentions:read",
+                "chat:write",
+                "groups:history",
+                "groups:read",
+                "im:history",
+                "users:read",
+                "users:read.email",
+                "channels:history"
+            ]
+        },
+        "pkce_enabled": false
+    },
+    "settings": {
+        "allowed_ip_address_ranges": [
+            "YOUR_EGRESS_IP/32"
+        ],
+        "event_subscriptions": {
+            "request_url": "https://YOUR_HOST/slack/agent/YOUR_SLACK_APP_ID",
+            "bot_events": [
+                "app_mention",
+                "message.channels",
+                "message.groups"
+            ]
+        },
+        "org_deploy_enabled": false,
+        "socket_mode_enabled": false,
+        "token_rotation_enabled": false,
+        "is_mcp_enabled": false
+    }
+}

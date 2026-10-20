@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: platform
+  namespace: platform
+  labels:
+    app.kubernetes.io/name: platform
+  annotations:
+    # Examples — replace with your ingress controller / cert-manager annotations.
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    # nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - platform.example.com
+      secretName: platform-tls
+  rules:
+    - host: platform.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: platform-frontend
+                port:
+                  number: 80

@@ -1,0 +1,116 @@
+# Default values for the platform Helm chart.
+# See deploy/helm/platform/README.md and docs/cloud-deployment.md.
+
+nameOverride: ""
+fullnameOverride: ""
+
+namespace:
+  create: true
+  name: platform
+
+images:
+  backend:
+    repository: REGISTRY/platform-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  frontend:
+    repository: REGISTRY/platform-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+replicaCount:
+  backend: 2
+  frontend: 2
+
+scheduler:
+  enabled: true
+  replicas: 1
+
+slackConsumer:
+  enabled: false
+  replicas: 1
+
+warmWorker:
+  enabled: false
+  replicas: 1
+
+# Non-secret environment variables (ConfigMap).
+config:
+  APP_ENV: production
+  APP_NAME: Platform
+  APP_BASE_URL: https://platform.example.com
+  RESOURCE_PREFIX: platform
+  ENABLE_MOCK_AUTH: "false"
+  RUN_MIGRATIONS: "true"
+  BLOB_STORE: local
+  SECRET_BACKEND: local
+  MESSAGE_QUEUE: inprocess
+  DIRECTORY_PROVIDER: claims
+  PLATFORM_INTERNAL_BASE_URL: http://backend:8000
+  MODEL_GATEWAY_URL: https://your-gateway.example.com/v1
+  # OIDC_ISSUER: https://your-issuer.example.com
+  # POLICY_AUD: your-audience
+  # REDIS_HOST: redis.example.internal
+  # SANDBOX_PYTHON_IMAGE: REGISTRY/platform-sandbox-python:TAG
+
+# Secrets. Set create=false and existingSecret when using External Secrets Operator.
+secret:
+  create: true
+  existingSecret: ""
+  SECRET_ENCRYPTION_KEY: ""
+  MODEL_GATEWAY_API_KEY: ""
+  DATABASE_URL: postgresql+asyncpg://USER:PASS@postgres:5432/platform
+  # INTERNAL_SIGNING_SECRET: ""
+
+ingress:
+  enabled: true
+  className: nginx
+  host: platform.example.com
+  tls:
+    enabled: true
+    secretName: platform-tls
+  annotations: {}
+  # cert-manager.io/cluster-issuer: letsencrypt-prod
+
+resources:
+  backend:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  frontend:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  scheduler:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  slackConsumer:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  warmWorker:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

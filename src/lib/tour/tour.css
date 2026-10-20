@@ -1,0 +1,77 @@
+.deriv-tour-popover {
+  background: #ffffff !important;
+  border-radius: 16px !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12) !important;
+  color: #0e0e0e !important;
+  font-family: inherit !important;
+  max-width: 360px !important;
+}
+
+.deriv-tour-popover .driver-popover-title {
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  color: #0e0e0e !important;
+  padding-right: 3rem !important;
+}
+
+.deriv-tour-popover .driver-popover-description {
+  font-size: 0.875rem !important;
+  line-height: 1.5 !important;
+  color: #475569 !important;
+}
+
+.deriv-tour-popover .driver-popover-progress-text {
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  color: #94a3b8 !important;
+  letter-spacing: 0.02em !important;
+}
+
+.deriv-tour-popover .driver-popover-footer button {
+  border-radius: 10px !important;
+  font-size: 0.8125rem !important;
+  font-weight: 600 !important;
+  padding: 0.5rem 0.875rem !important;
+  text-shadow: none !important;
+}
+
+.deriv-tour-popover .driver-popover-prev-btn {
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.deriv-tour-popover .driver-popover-prev-btn:disabled {
+  opacity: 0.4 !important;
+}
+
+.deriv-tour-popover .driver-popover-next-btn,
+.deriv-tour-popover .driver-popover-done-btn {
+  background: #ff444f !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+.deriv-tour-popover .driver-popover-close-btn {
+  background: transparent !important;
+  color: #64748b !important;
+  border: none !important;
+  font-weight: 600 !important;
+  /* driver.js sizes this for a "×" icon (32×28px); we relabel it "Skip". */
+  width: auto !important;
+  height: auto !important;
+  top: 12px !important;
+  right: 12px !important;
+  padding: 0 !important;
+  font-size: 0.8125rem !important;
+  line-height: 1.25 !important;
+}
+
+.deriv-tour-popover .driver-popover-close-btn:hover {
+  color: #0e0e0e !important;
+}
+
+.driver-overlay {
+  backdrop-filter: blur(1px);
+}

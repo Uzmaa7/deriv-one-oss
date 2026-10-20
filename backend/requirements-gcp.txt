@@ -1,0 +1,6 @@
+-r requirements.txt
+google-cloud-secret-manager>=2.20
+google-cloud-pubsub>=2.21
+google-cloud-monitoring>=2.21
+google-cloud-storage>=2.14
+google-cloud-discoveryengine>=0.13

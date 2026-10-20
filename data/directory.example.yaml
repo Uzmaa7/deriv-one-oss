@@ -1,0 +1,39 @@
+# Example directory file for DIRECTORY_PROVIDER=file.
+#
+# Copy to the path named by DIRECTORY_FILE (default data/directory.yaml) and
+# populate it — by hand for a small deployment, or from a periodic export of
+# whatever your organisation uses as its system of record. The file is re-read
+# when it changes; no restart needed.
+#
+# Only `email` is required. Everything else is optional, and features degrade
+# rather than break when a field is missing: with no `manager_email` anywhere,
+# access requests route to administrators instead of to managers.
+
+people:
+  - email: ada@example.org
+    name: Ada Lovelace
+    department: Engineering
+    team: Platform
+    manager_email: grace@example.org
+    title: Principal Engineer
+    status: active
+    groups:
+      - platform-admins
+
+  - email: grace@example.org
+    name: Grace Hopper
+    department: Engineering
+    team: Platform
+    title: Director of Engineering
+    status: active
+    groups:
+      - platform-admins
+
+  - email: alan@example.org
+    name: Alan Turing
+    department: Research
+    manager_email: grace@example.org
+    title: Research Engineer
+    status: active
+    groups:
+      - platform-users

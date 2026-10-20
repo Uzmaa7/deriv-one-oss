@@ -1,0 +1,50 @@
+{{- if .Values.warmWorker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "platform.fullname" . }}-warm-worker
+  namespace: {{ include "platform.namespace" . }}
+  labels:
+    {{- include "platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: warm-worker
+spec:
+  replicas: {{ .Values.warmWorker.replicas }}
+  selector:
+    matchLabels:
+      {{- include "platform.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: warm-worker
+  template:
+    metadata:
+      labels:
+        {{- include "platform.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: warm-worker
+    spec:
+{{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+{{- end }}
+      containers:
+        - name: warm-worker
+          image: {{ include "platform.backendImage" . }}
+          imagePullPolicy: {{ .Values.images.backend.pullPolicy }}
+          command: ["python", "-m", "warm_worker"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "platform.configMapName" . }}
+            - secretRef:
+                name: {{ include "platform.secretName" . }}
+          resources:
+            {{- toYaml .Values.resources.warmWorker | nindent 12 }}
+{{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- end }}

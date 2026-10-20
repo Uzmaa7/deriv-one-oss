@@ -1,0 +1,50 @@
+{{- if .Values.slackConsumer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "platform.fullname" . }}-slack-consumer
+  namespace: {{ include "platform.namespace" . }}
+  labels:
+    {{- include "platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: slack-consumer
+spec:
+  replicas: {{ .Values.slackConsumer.replicas }}
+  selector:
+    matchLabels:
+      {{- include "platform.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: slack-consumer
+  template:
+    metadata:
+      labels:
+        {{- include "platform.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: slack-consumer
+    spec:
+{{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+{{- end }}
+      containers:
+        - name: slack-consumer
+          image: {{ include "platform.backendImage" . }}
+          imagePullPolicy: {{ .Values.images.backend.pullPolicy }}
+          command: ["python", "-m", "slack_consumer_worker"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "platform.configMapName" . }}
+            - secretRef:
+                name: {{ include "platform.secretName" . }}
+          resources:
+            {{- toYaml .Values.resources.slackConsumer | nindent 12 }}
+{{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,239 @@
+path,disposition,category,rationale
+backend/.env,GITIGNORE,secrets,Local secrets — never commit
+backend/.env.example,KEEP,config,Configuration templates — required for OSS
+backend/.slack_token_cache.example.json,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/Dockerfile,KEEP,config,Configuration templates — required for OSS
+backend/access_models.py,KEEP,auth,Authentication — required for OSS
+backend/agent_channel_configs.py,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/agent_failure_alerts.py,KEEP,core,Core platform — required for OSS
+backend/agent_knowledge_base_index.py,KEEP,core,Core platform — required for OSS
+backend/agent_knowledge_base_naming.py,KEEP,core,Core platform — required for OSS
+backend/agent_knowledge_base_service.py,KEEP,core,Core platform — required for OSS
+backend/agent_knowledge_base_store.py,KEEP,core,Core platform — required for OSS
+backend/agent_knowledge_base_tool.py,KEEP,core,Core platform — required for OSS
+backend/agent_llm.py,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/agent_memory_jobs.py,KEEP,core,Core platform — required for OSS
+backend/agent_scheduled_tasks.py,KEEP,core,Core platform — required for OSS
+backend/agent_worker.py,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/agents.py,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/alembic.ini,KEEP,core,Core platform — required for OSS
+backend/alembic/env.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/script.py.mako,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/5902a4d5b2d8_interaction_failure_fields.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/7f42a0046e65_baseline.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/a1b2c3d4e5f6_add_user_events.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/a2b3c4d5e6f7_browser_attachments.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/a3f7e2b1c845_warm_fleet_schema.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/a9b8c7d6e5f4_agent_workflow_tables.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/aa1b2c3d4e5f_drop_computer_use_and_role_blueprints.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/b2c3d4e5f6a7_add_role_blueprints.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/bb2c3d4e5f6a_drop_migration_sessions.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/c3d4e5f6a7b8_add_resource_proposals.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/c4d5e6f7a8b9_add_jd_slack_signals.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/cc3d4e5f6a7b_add_platform_setup.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/ce950c22ce5a_merge_warm_fleet_schema_and_workspace_.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/d5e6f7a8b9c0_add_feedback_assignee_priority.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/e6f7a8b9c0d1_merge_feedback_and_warm_fleet_heads.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/f8a9b0c1d2e3_add_pending_scopes.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/g1h2i3j4k5l6_agent_memory_retention_indexes.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/h2i3j4k5l6m7_skill_artifacts.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/i3j4k5l6m7n8_artifact_recommendations.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/j4k5l6m7n8o9_skill_artifact_test_sessions.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/k5l6m7n8o9p0_add_agent_artifacts_enabled.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/l6m7n8o9p0q1_suggest_job_artifact_description.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/m7n8o9p0q1r2_agent_skill_routing.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/n8o9p0q1r2s3_add_user_profiles.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/o9p0q1r2s3t4_add_collaborator_permissions.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/p1q2r3s4t5u6_merge_heads_add_ephemeral_replies.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/q2r3s4t5u6v7_add_agent_usecase_description.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/r3s4t5u6v7w8_browser_session_tables.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/s4t5u6v7w8x9_browser_conversation.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/t5u6v7w8x9y0_browser_saved_tasks.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/u6v7w8x9y0z1_agent_knowledge_bases.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/v7w8x9y0z1a2_browser_compiled_replay.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/w8x9y0z1a2b3_browser_cache_tokens.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/x9y0z1a2b3c4_browser_context_tokens.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/y0z1a2b3c4d5_drop_synthetic_login_steps.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/z1a2b3c4d5e6_browser_task_scheduling.py,KEEP,migrations,Database migrations — required for OSS
+backend/alembic/versions/z1a2b3c4d5e6_flow_owner_scoping.py,KEEP,migrations,Database migrations — required for OSS
+backend/ambient_message_gate.py,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/anthropic_blocks.py,KEEP,core,Core platform — required for OSS
+backend/api_access.py,KEEP,auth,Authentication — required for OSS
+backend/api_agent_access.py,KEEP,core,Core platform — required for OSS
+backend/api_agent_knowledge_base.py,KEEP,core,Core platform — required for OSS
+backend/api_agent_roles.py,KEEP,core,Core platform — required for OSS
+backend/api_agent_skill_access.py,KEEP,core,Core platform — required for OSS
+backend/api_agents.py,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/api_analytics.py,KEEP,core,Core platform — required for OSS
+backend/api_apps.py,KEEP,lab,Lab app builder — required for OSS
+backend/api_channel_configs.py,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/api_flows.py,KEEP,flows,Ship in OSS — part of public feature set
+backend/api_google_user_oauth.py,KEEP,core,Core platform — required for OSS
+backend/api_home.py,KEEP,core,Core platform — required for OSS
+backend/api_infra.py,REVIEW,admin,K8s metrics admin tab — degrades off-cluster; optional CUT
+backend/api_internal.py,KEEP,core,Core platform — required for OSS
+backend/api_overnight.py,CUT,overnight,Removed P0 — not in OSS release
+backend/api_platform.py,KEEP,core,Core platform — required for OSS
+backend/api_proposals.py,KEEP,core,Core platform — required for OSS
+backend/api_setup.py,KEEP,core,Core platform — required for OSS
+backend/api_skill_ai_edit.py,KEEP,skills,Skills catalogue — required for OSS
+backend/api_skill_artifact_plan.py,KEEP,skills,Skills catalogue — required for OSS
+backend/api_skill_artifacts.py,KEEP,skills,Skills catalogue — required for OSS
+backend/api_skill_artifacts_suggest.py,KEEP,skills,Skills catalogue — required for OSS
+backend/api_skill_create.py,KEEP,skills,Skills catalogue — required for OSS
+backend/api_skill_publish.py,KEEP,skills,Skills catalogue — required for OSS
+backend/api_slack_apps.py,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/api_slack_events.py,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/api_slack_oauth.py,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/api_slack_user_oauth.py,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/api_systems.py,KEEP,core,Core platform — required for OSS
+backend/api_usage.py,KEEP,core,Core platform — required for OSS
+backend/api_user_models.py,KEEP,core,Core platform — required for OSS
+backend/api_user_secrets.py,KEEP,core,Core platform — required for OSS
+backend/api_workflows.py,KEEP,workflows,Ship in OSS — part of public feature set
+backend/app_classifier.py,KEEP,lab,Lab app builder — required for OSS
+backend/app_config.py,KEEP,core,Core platform — required for OSS
+backend/apps_models.py,KEEP,lab,Lab app builder — required for OSS
+backend/artifact_gate.py,KEEP,skills,Skills catalogue — required for OSS
+backend/artifact_models.py,KEEP,skills,Skills catalogue — required for OSS
+backend/artifact_params.py,KEEP,skills,Skills catalogue — required for OSS
+backend/artifact_runtime.py,KEEP,skills,Skills catalogue — required for OSS
+backend/auth_policy.py,KEEP,auth,Authentication — required for OSS
+backend/automation_prompts.py,KEEP,core,Core platform — required for OSS
+backend/cf_access.py,KEEP,auth,Authentication — required for OSS
+backend/chat_search.py,KEEP,workspace,Workspace chat — required for OSS
+backend/chat_session_control.py,KEEP,workspace,Workspace chat — required for OSS
+backend/code_fingerprint.py,KEEP,skills,Skills catalogue — required for OSS
+backend/complexity_router.py,KEEP,workspace,Workspace chat — required for OSS
+backend/cron_scheduler.py,KEEP,workers,Background workers — required for production Slack/scheduling
+backend/cron_worker_pool.py,KEEP,workers,Background workers — required for production Slack/scheduling
+backend/database.py,KEEP,core,Core platform — required for OSS
+backend/docker-entrypoint.sh,KEEP,core,Core platform — required for OSS
+backend/event_log.py,KEEP,core,Core platform — required for OSS
+backend/executor.py,KEEP,core,Core platform — required for OSS
+backend/google_oauth.py,KEEP,core,Core platform — required for OSS
+backend/google_workspace_integration.py,KEEP,workspace,Workspace chat — required for OSS
+backend/high_risk_agent_alerts.py,KEEP,core,Core platform — required for OSS
+backend/hub.db,GITIGNORE,runtime,SQLite dev database
+backend/kb_ingest_worker.py,KEEP,workers,Background workers — required for production Slack/scheduling
+backend/kb_usage.py,KEEP,core,Core platform — required for OSS
+backend/lab_builder.py,KEEP,lab,Lab app builder — required for OSS
+backend/lab_edits.py,KEEP,lab,Lab app builder — required for OSS
+backend/lab_plan.py,KEEP,lab,Lab app builder — required for OSS
+backend/lab_plan_chat.py,KEEP,lab,Lab app builder — required for OSS
+backend/lab_prompts.py,KEEP,lab,Lab app builder — required for OSS
+backend/lab_records.py,KEEP,lab,Lab app builder — required for OSS
+backend/lab_records_sandbox.py,KEEP,lab,Lab app builder — required for OSS
+backend/lab_scaffold.py,KEEP,lab,Lab app builder — required for OSS
+backend/lab_scaffolds/react/__src__/index.html,KEEP,scaffolds,Lab scaffolds — required for OSS
+backend/lab_scaffolds/react/__src__/package.json,KEEP,scaffolds,Lab scaffolds — required for OSS
+backend/lab_scaffolds/react/__src__/src/App.tsx,KEEP,scaffolds,Lab scaffolds — required for OSS
+backend/lab_scaffolds/react/__src__/src/index.css,KEEP,scaffolds,Lab scaffolds — required for OSS
+backend/lab_scaffolds/react/__src__/src/lib/api.ts,KEEP,scaffolds,Lab scaffolds — required for OSS
+backend/lab_scaffolds/react/__src__/src/main.tsx,KEEP,scaffolds,Lab scaffolds — required for OSS
+backend/lab_scaffolds/vanilla/app.js,KEEP,scaffolds,Lab scaffolds — required for OSS
+backend/lab_scaffolds/vanilla/index.html,KEEP,scaffolds,Lab scaffolds — required for OSS
+backend/lab_scaffolds/vanilla/server.py,KEEP,scaffolds,Lab scaffolds — required for OSS
+backend/lab_scaffolds/vanilla/style.css,KEEP,scaffolds,Lab scaffolds — required for OSS
+backend/lab_verify.py,KEEP,lab,Lab app builder — required for OSS
+backend/llm_json.py,KEEP,lab,Lab app builder — required for OSS
+backend/llm_json.py,KEEP,lab,NEW — shared LLM/JSON helpers (extracted from overnight_common)
+backend/main.py,KEEP,core,Core platform — required for OSS
+backend/memory_store/__init__.py,KEEP,agents,Agents runtime — required for OSS
+backend/memory_store/consolidation.py,KEEP,agents,Agents runtime — required for OSS
+backend/memory_store/factory.py,KEEP,agents,Agents runtime — required for OSS
+backend/memory_store/legacy.py,KEEP,agents,Agents runtime — required for OSS
+backend/memory_store/maintenance.py,KEEP,agents,Agents runtime — required for OSS
+backend/memory_store/memory_archive.py,KEEP,agents,Agents runtime — required for OSS
+backend/memory_store/memory_episodes.py,KEEP,agents,Agents runtime — required for OSS
+backend/memory_store/policy.py,KEEP,agents,Agents runtime — required for OSS
+backend/memory_store/types.py,KEEP,agents,Agents runtime — required for OSS
+backend/mock_feedback.py,REVIEW,dev,Mock auth demo data — optional CUT for cleaner OSS
+backend/model_catalog.py,KEEP,workspace,Workspace chat — required for OSS
+backend/model_gateway.py,KEEP,workspace,Workspace chat — required for OSS
+backend/model_preferences.py,KEEP,workspace,Workspace chat — required for OSS
+backend/model_pricing.py,KEEP,core,Core platform — required for OSS
+backend/node_build.py,KEEP,lab,Lab app builder — required for OSS
+backend/ops_alerts.py,KEEP,core,Core platform — required for OSS
+backend/org_directory.py,KEEP,core,Core platform — required for OSS
+backend/overnight_common.py,CUT,overnight,Removed P0 — replaced by llm_json.py
+backend/overnight_loop.py,CUT,overnight,Removed P0
+backend/overnight_models.py,CUT,overnight,Removed P0
+backend/overnight_verify.py,CUT,overnight,Removed P0
+backend/overnight_worker.py,CUT,overnight,Removed P0
+backend/platform.env,GITIGNORE,secrets,Wizard output — never commit
+backend/platform.env.example,KEEP,config,Configuration templates — required for OSS
+backend/platform_setup_store.py,KEEP,core,Core platform — required for OSS
+backend/platform_urls.py,KEEP,core,Core platform — required for OSS
+backend/providers/__init__.py,KEEP,providers,Provider interfaces — required for OSS
+backend/providers/alerts.py,KEEP,providers,Provider interfaces — required for OSS
+backend/providers/blobs.py,KEEP,providers,Provider interfaces — required for OSS
+backend/providers/directory.py,KEEP,providers,Provider interfaces — required for OSS
+backend/providers/queue.py,KEEP,providers,Provider interfaces — required for OSS
+backend/providers/retrieval.py,KEEP,providers,Provider interfaces — required for OSS
+backend/providers/sandbox.py,KEEP,providers,Provider interfaces — required for OSS
+backend/providers/secrets.py,KEEP,providers,Provider interfaces — required for OSS
+backend/providers_reference/README.md,KEEP,docs,Ship in OSS — part of public feature set
+backend/redaction.py,KEEP,skills,Skills catalogue — required for OSS
+backend/requirements-gcp.txt,REVIEW,deps,SDK pins only — no GCP provider implementation ships
+backend/requirements-integrations.txt,REVIEW,deps,Optional integration deps
+backend/requirements-k8s.txt,REVIEW,deps,Optional K8s sandbox deps — adopters install if needed
+backend/requirements.txt,KEEP,config,Configuration templates — required for OSS
+backend/resource_proposals.py,KEEP,workspace,Workspace chat — required for OSS
+backend/run_workspace.py,KEEP,flows,Ship in OSS — part of public feature set
+backend/sandbox_paths.py,KEEP,core,Core platform — required for OSS
+backend/sandbox_reaper.py,KEEP,core,Core platform — required for OSS
+backend/scheduler_worker.py,KEEP,workers,Background workers — required for production Slack/scheduling
+backend/scope_router.py,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/scripts/export_agent_memory_archive.py,MOVED,ops-scripts,Deleted — replaced by docs/runbooks/agent-memory-export.md
+backend/scripts/slack_token_rotator.py,MOVED,ops-scripts,Deleted — replaced by docs/runbooks/slack-token-rotation.md
+backend/secret_vault.py,KEEP,core,Core platform — required for OSS
+backend/setup_cli.py,KEEP,core,Core platform — required for OSS
+backend/setup_models.py,KEEP,core,Core platform — required for OSS
+backend/skill_collaborators.py,KEEP,skills,Skills catalogue — required for OSS
+backend/skill_creation_models.py,KEEP,skills,Skills catalogue — required for OSS
+backend/skill_edit_commit.py,KEEP,skills,Skills catalogue — required for OSS
+backend/skill_index.py,KEEP,skills,Skills catalogue — required for OSS
+backend/skill_router.py,KEEP,skills,Skills catalogue — required for OSS
+backend/skill_submission_models.py,KEEP,skills,Skills catalogue — required for OSS
+backend/skill_system_links_model.py,KEEP,skills,Skills catalogue — required for OSS
+backend/skill_system_matcher.py,KEEP,skills,Skills catalogue — required for OSS
+backend/skill_version_history.py,KEEP,skills,Skills catalogue — required for OSS
+backend/skills_acl.py,KEEP,skills,Skills catalogue — required for OSS
+backend/skills_invalidate.py,KEEP,skills,Skills catalogue — required for OSS
+backend/skills_store.py,KEEP,skills,Skills catalogue — required for OSS
+backend/slack_app_registry.py,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/slack_consumer_worker.py,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/slack_oauth.py,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/slack_reply_gate.py,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/slack_scope_catalog.py,KEEP,slack,Slack integration — required for OSS (primary adoption path)
+backend/system_catalog.py,KEEP,core,Core platform — required for OSS
+backend/tenancy.py,KEEP,core,Core platform — required for OSS
+backend/tests/test_lab_builder.py,KEEP,tests,Unit tests — required for OSS
+backend/tests/test_lab_plan_chat.py,KEEP,tests,Unit tests — required for OSS
+backend/tests/test_lab_records.py,KEEP,tests,Unit tests — required for OSS
+backend/tests/test_lab_run_endpoint.py,KEEP,tests,Unit tests — required for OSS
+backend/tests/test_model_catalog.py,KEEP,tests,Unit tests — required for OSS
+backend/tests/test_model_gateway.py,KEEP,tests,Unit tests — required for OSS
+backend/tests/test_model_preferences.py,KEEP,tests,Unit tests — required for OSS
+backend/tests/test_platform_setup_store.py,KEEP,tests,Unit tests — required for OSS
+backend/tests/test_platform_urls.py,KEEP,tests,Unit tests — required for OSS
+backend/tests/test_smoke.py,KEEP,tests,Unit tests — required for OSS
+backend/token_tracking.py,KEEP,core,Core platform — required for OSS
+backend/tool_code_retention.py,KEEP,core,Core platform — required for OSS
+backend/user_profile.py,KEEP,core,Core platform — required for OSS
+backend/warm_worker.py,KEEP,workers,Optional advanced Slack consumer — slack_consumer_worker is default (README)
+backend/workflow_engine.py,KEEP,workflows,Ship in OSS — part of public feature set
+backend/workflow_models.py,KEEP,workflows,Ship in OSS — part of public feature set
+backend/workspace_openai_chat.py,KEEP,workspace,Workspace chat — required for OSS
+deploy/k8s/README.md,KEEP,deploy,Required for OSS UI/deploy
+docker-compose.workers.yml,KEEP,deploy,Required for OSS UI/deploy
+docker-compose.yml,KEEP,deploy,Required for OSS UI/deploy
+docs/runbooks/agent-memory-export.md,KEEP,docs,Replaces export_agent_memory_archive.py
+docs/runbooks/slack-token-rotation.md,KEEP,docs,Replaces slack_token_rotator.py
+src/App.tsx,KEEP,frontend,Required for OSS UI/deploy
+src/lib/branding.tsx,KEEP,frontend,Required for OSS UI/deploy
+src/pages/AppsPage.tsx,KEEP,frontend,Required for OSS UI/deploy
+src/pages/LabPage.tsx,KEEP,frontend,Required for OSS UI/deploy
+src/pages/OvernightPage.tsx,CUT,frontend-lab,Overnight UI — not in OSS release
+src/pages/WorkspacePage.tsx,KEEP,frontend,Required for OSS UI/deploy

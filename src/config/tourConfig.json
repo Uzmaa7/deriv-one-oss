@@ -1,0 +1,54 @@
+{
+  "tourVersion": "1.4.0",
+  "steps": [
+    {
+      "stepId": "nav-skills",
+      "targetSelector": "[data-tour='nav-skills']",
+      "title": "Skills",
+      "content": "Your basic building blocks. A Skill is a single reusable action, like generating a summary, parsing a document, or creating a ticket.",
+      "position": "right"
+    },
+    {
+      "stepId": "nav-integrations",
+      "targetSelector": "[data-tour='nav-integrations']",
+      "title": "Integrations",
+      "content": "Connect your app stack (Slack, Google Workspace, GitHub). Integrations grant your Skills permission to read and write data securely.",
+      "position": "right"
+    },
+    {
+      "stepId": "nav-memory",
+      "targetSelector": "[data-tour='nav-memory']",
+      "title": "Memory",
+      "content": "The central brain. Store brand guidelines, documentation, and context here so your agents stay informed on company policies and knowledge.",
+      "position": "right"
+    },
+    {
+      "stepId": "nav-agents",
+      "targetSelector": "[data-tour='nav-agents']",
+      "title": "Agents",
+      "content": "Your digital team members. An Agent combines multiple Skills and Memory into a dedicated role (e.g., Compliance Officer, Specs Builder).",
+      "position": "right"
+    },
+    {
+      "stepId": "nav-automations",
+      "targetSelector": "[data-tour='nav-automations']",
+      "title": "Automations",
+      "content": "Put work on autopilot. Set up schedule or event triggers (e.g., 'every Monday at 9 AM' or 'on new Slack tag') to run tasks automatically.",
+      "position": "right"
+    },
+    {
+      "stepId": "prompt-bar",
+      "targetSelector": "[data-tour='prompt-bar']",
+      "title": "Ask & Execute",
+      "content": "Type requests in plain English to invoke skills, query your Memory database, or run an agent directly from this prompt bar.",
+      "position": "bottom"
+    },
+    {
+      "stepId": "starting-points",
+      "targetSelector": "[data-tour='starting-points']",
+      "title": "Starting Points",
+      "content": "Browse ready-to-use templates grouped by Slack agents, internal apps, and data reports to launch workflows instantly.",
+      "position": "top"
+    }
+  ]
+}

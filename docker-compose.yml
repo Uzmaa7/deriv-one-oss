@@ -1,0 +1,104 @@
+# Platform — local development stack.
+#
+#   cp backend/.env.example backend/.env     # then set MODEL_GATEWAY_* and SECRET_ENCRYPTION_KEY
+#   docker compose up --build
+#
+# The UI is on http://localhost:8080 (override with HTTP_PORT).
+#
+# This runs the application with mock authentication and local providers: files
+# on disk for blobs and secrets, an in-process queue, SQLite. It is a
+# development stack. Putting it in front of real users means, at minimum,
+# turning off ENABLE_MOCK_AUTH and putting an identity proxy in front of it.
+
+name: platform
+
+services:
+  # Builds and tags the image that model-generated Python runs in, then exits.
+  # The backend starts run containers through the host's engine, so the tag has
+  # to exist on that engine before the first run — which is what this service
+  # is for. It is not a running dependency; the backend waits only for it to
+  # finish. Drop it if you point SANDBOX_PYTHON_IMAGE at your own image.
+  sandbox-image:
+    build:
+      context: docker/sandbox
+    image: platform/sandbox-python:latest
+    command: ["python", "-c", "print('sandbox image ready')"]
+    restart: "no"
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file:
+      - path: backend/.env
+        required: false
+    environment:
+      HUB_DATABASE_PATH: ${HUB_DATABASE_PATH:-/data/hub.db}
+      BLOB_ROOT: /data/blobs
+      SECRET_ROOT: /data/secrets
+      RETRIEVAL_ROOT: /data/retrieval
+
+      # Where a run's code is staged. The engine's daemon resolves --volume
+      # paths in its own filesystem, not this container's, so the backend asks
+      # the engine what this mount is called on the host and translates. Set
+      # SANDBOX_HOST_WORKSPACE_ROOT only if that lookup cannot work for you.
+      SANDBOX_WORKSPACE_ROOT: /sandbox-workspaces
+
+      # Must name the image built above, and must list what that image actually
+      # has — the model is told this and cannot install anything at runtime.
+      # Set here rather than in backend/.env because both have to agree with
+      # what this file builds; values here win over backend/.env.
+      SANDBOX_PYTHON_IMAGE: ${SANDBOX_PYTHON_IMAGE:-platform/sandbox-python:latest}
+      SANDBOX_PYTHON_PACKAGES: >-
+        requests, httpx, curl_cffi, beautifulsoup4, lxml, openpyxl, xlrd,
+        tabulate, python-dotenv, python-docx (import as `docx`), slack_sdk,
+        pandas, numpy, matplotlib
+    volumes:
+      - platform-data:/data
+      - platform-generated:/app/generated
+      - platform-skills:/src/data
+      # Shared with the host engine so sandbox runs can be handed their code.
+      - sandbox-workspaces:/sandbox-workspaces
+      # The sandbox provider launches containers via the host's container
+      # engine. Mounting the socket grants this service control of that engine —
+      # a real privilege. Remove it and set SANDBOX_PROVIDER accordingly if you
+      # do not need code execution.
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      sandbox-image:
+        condition: service_completed_successfully
+    expose:
+      - "8000"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/api/health', timeout=5).read()",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_AUTH_TOKEN: ${VITE_AUTH_TOKEN:-}
+        VITE_SLACK_GATEWAY_BASE: ${VITE_SLACK_GATEWAY_BASE:-}
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  platform-data:
+  platform-generated:
+  platform-skills:
+  sandbox-workspaces:

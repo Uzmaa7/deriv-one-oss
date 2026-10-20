@@ -1,0 +1,68 @@
+# Skill access-control manifest
+#
+# Every skill in the catalogue gets an entry here. The entry decides who sees it,
+# who may use it without asking, and what happens when somebody outside that
+# group wants in.
+#
+# departments:
+#   Department names — as your directory provider reports them — whose members get
+#   automatic access. Use ["*"] for skills everyone may use.
+#
+# risk_level: standard | elevated | critical
+#   standard  — ordinary skill; owning departments get access, others may request.
+#   elevated  — touches sensitive data or systems; others get a restricted, read-only
+#               grant by default rather than full access.
+#   critical  — highest risk; NO department gets automatic access. Only the person who
+#               published the skill may use it without asking, and every other request
+#               is approved by platform administrators rather than a department manager.
+#
+# cross_dept_policy: requestable | restricted | blocked
+#   What somebody outside the owning departments may do: ask for access, ask for a
+#   limited form of it, or nothing at all.
+#
+# cross_dept_approvers:
+#   Departments whose managers approve those requests. Ignored for critical skills,
+#   which always route to platform administrators. When no directory provider is
+#   configured there are no managers to route to and every request goes to
+#   administrators — that is the default, and it is a safe one.
+#
+# cross_dept_default_grant: time_limited_30d | time_limited_90d | permanent | restricted_read_only
+#   What a granted request gives, and for how long.
+#
+# integrations:
+#   Connected systems this skill reaches, matched against the system catalogue
+#   (see backend/system_catalog.py). Drives risk-aware alerting.
+
+skills:
+  build-from-specs:
+    departments:
+    - '*'
+    integrations: []
+    risk_level: standard
+    cross_dept_policy: requestable
+    cross_dept_default_grant: permanent
+    description: Build features from product specifications
+  announcement-card:
+    departments:
+    - '*'
+    integrations: []
+    risk_level: standard
+    cross_dept_policy: requestable
+    cross_dept_default_grant: permanent
+    description: Generate visual announcement card images
+  pdf:
+    departments:
+    - '*'
+    integrations: []
+    risk_level: standard
+    cross_dept_policy: requestable
+    cross_dept_default_grant: permanent
+    description: Generate and manipulate PDF documents
+  docx:
+    departments:
+    - '*'
+    integrations: []
+    risk_level: standard
+    cross_dept_policy: requestable
+    cross_dept_default_grant: permanent
+    description: Create and edit Word documents
