@@ -1,19 +1,23 @@
-# Platform
+# Deriv One
 
-A self-hostable agent platform. It gives everyone in an organisation a configured
-AI workspace — chat, a governed catalogue of skills, registerable Slack agents,
-sandboxed code execution, scheduled automations, and an app builder — without
-anyone hand-managing terminals, API keys or tool configs.
+**Deriv One** is an open-source, self-hostable platform for governed AI at work. Your
+team gets a shared workspace — chat, skills, Slack agents, sandboxed Python, scheduled
+automations, and a small app builder — while credentials and models stay on
+**your** infrastructure and **your** model gateway.
 
-It is built to be run by an organisation, on its own infrastructure, against its
-own model gateway. Nothing here is tied to a particular hosting vendor.
+[Repository](https://github.com/deriv-com/deriv-one-oss) ·
+[MIT License](https://github.com/deriv-com/deriv-one-oss/blob/master/LICENSE) ·
+[Security policy](https://github.com/deriv-com/deriv-one-oss/blob/master/SECURITY.md)
 
 ---
 
 ## Contents
 
-- [Why it is shaped this way](#why-it-is-shaped-this-way)
+- [What you get](#what-you-get)
+- [What you need](#what-you-need)
 - [Quick start](#quick-start)
+- [Documentation](#documentation)
+- [Why it is shaped this way](#why-it-is-shaped-this-way)
 - [The components](#the-components)
 - [The provider layer](#the-provider-layer)
 - [Configuration](#configuration)
@@ -23,6 +27,33 @@ own model gateway. Nothing here is tied to a particular hosting vendor.
 - [Callback and request URLs](#callback-and-request-urls)
 - [Status](#status)
 - [Licence](#licence)
+
+---
+
+## What you get
+
+| Capability | In plain terms |
+|------------|----------------|
+| **Workspace chat** | Multi-tab chat with skills, context limits, and model routing tuned per message. |
+| **Skills** | Versioned, reviewable instruction packs (plus optional Python artifacts) with per-person access control. |
+| **Agents** | Register Slack bots with their own app credentials, memory, knowledge bases, and schedules. |
+| **Sandbox** | Model-generated Python runs in disposable containers — not on your laptop with full secrets. |
+| **Lab** | Describe an internal app in chat, preview it, and host it on your instance. |
+| **Automations & flows** | Cron jobs and user-owned skill chains for repeat work. |
+
+Operators configure identity (OIDC or mock auth for local dev), attach an OpenAI-compatible **model gateway**, and optionally wire Slack and Google OAuth. Nothing in the repo assumes a specific cloud vendor.
+
+---
+
+## What you need
+
+| Requirement | Notes |
+|-------------|--------|
+| **Model gateway** | Any OpenAI-compatible HTTP API (LiteLLM, vLLM, Ollama with a proxy, a cloud gateway you control, etc.). |
+| **Docker** (recommended) | For the default stack and for sandbox execution. Local dev without Docker is possible with reduced isolation — see [Quick start](#quick-start). |
+| **Node.js 20+** | UI and `npm run setup` / `npm run dev`. |
+| **Python 3.12+** | API backend. |
+| **Identity (production)** | Put a real OIDC/JWT proxy in front of the app and turn off mock auth. |
 
 ---
 
@@ -65,18 +96,42 @@ a process spawn per invocation. That is the price of the guarantee.
 
 ## Quick start
 
-Requires Docker (or another container engine) and a reachable OpenAI-compatible
-model gateway.
+These steps get Deriv One running on your machine for exploration. For production,
+follow [Operating it](#operating-it) and [docs/ADOPTER_GUIDE.md](docs/ADOPTER_GUIDE.md).
+
+### 1. Clone and install
 
 ```bash
-git clone https://github.com/deriv-com/deriv-one-oss.git && cd deriv-one-oss
+git clone https://github.com/deriv-com/deriv-one-oss.git
+cd deriv-one-oss
 cp backend/.env.example backend/.env
 cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-cd .. && npm run setup -- --quick --test-gateway
+cd .. && npm install
 ```
 
-The setup script will offer to start both servers for you (or run `npm run dev:stack`
-any time). For Docker instead, set three values in `backend/.env` manually:
+### 2. Run the setup wizard (recommended)
+
+The wizard writes `backend/platform.env` (gateway, encryption key, auth mode) and can
+probe your model gateway:
+
+```bash
+npm run setup -- --quick --test-gateway
+```
+
+When it finishes, start the stack (or accept the prompt to start automatically):
+
+```bash
+npm run dev:stack
+```
+
+- **UI (dev):** <http://localhost:3000> (proxies API to port 8000)
+- **Sign-in:** with mock auth enabled, you are signed in as the admin user defined in env (see `backend/.env.example`).
+
+On first login, admins can open **Settings → Platform setup** (`/admin/setup`) to adjust branding, models, identity, directory, and Slack.
+
+### 3. Or use Docker Compose
+
+Set three values in `backend/.env` (the wizard can do this for you instead):
 
 | Variable | Why |
 |---|---|
@@ -95,10 +150,6 @@ backend container is that container, not your machine: use
 (Linux). That is what `backend/.env.example` ships.
 
 The UI is on <http://localhost:8080>.
-
-On first sign-in, admins are guided through **Platform setup** at `/admin/setup`
-(branding, model gateway, identity, directory, optional Slack). You can also open
-it later from **Settings → Platform setup**.
 
 That stack runs with mock authentication and local providers — files on disk, an
 in-process queue, SQLite. **`ENABLE_MOCK_AUTH=true` is the shipped default so
@@ -134,6 +185,19 @@ For code execution without a container engine, set `SANDBOX_PROVIDER=subprocess`
 and `ALLOW_UNSANDBOXED_EXECUTION=1` — and understand that this runs
 model-generated code directly on your machine, with your files and your
 credentials, and no isolation of any kind.
+
+---
+
+## Documentation
+
+| Guide | Use when |
+|-------|----------|
+| [docs/ADOPTER_GUIDE.md](docs/ADOPTER_GUIDE.md) | Self-hosting checklist — auth, directory, Slack, workers, env files. |
+| [docs/docker-setup.md](docs/docker-setup.md) | Docker-focused setup and troubleshooting. |
+| [docs/cloud-deployment.md](docs/cloud-deployment.md) | Kubernetes / Helm / cloud data plane. |
+| [docs/slack-app-setup.md](docs/slack-app-setup.md) | Register Slack apps manually. |
+| [docs/slack-dmz-relay.md](docs/slack-dmz-relay.md) | Multi-replica Slack event relay. |
+| [SECURITY.md](SECURITY.md) | Reporting vulnerabilities (private disclosure). |
 
 ---
 
@@ -504,4 +568,5 @@ See [docs/ADOPTER_GUIDE.md](docs/ADOPTER_GUIDE.md) for the full configuration ma
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Deriv One is released under the [MIT License](LICENSE). Third-party notices:
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
