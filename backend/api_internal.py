@@ -68,6 +68,14 @@ _INTERNAL_SIGNING_SECRET: str = os.environ.get("INTERNAL_SIGNING_SECRET", "")
 _MAX_AGENT_DEPTH = 3
 
 
+def target_accepts_invoker(can_be_invoked_by: str | None, source_agent_id: str) -> bool:
+    """Empty allow-list denies. ``*`` or an explicit source id allows."""
+    invoked_by = agent_loads(can_be_invoked_by or "[]")
+    if not isinstance(invoked_by, list):
+        return False
+    return "*" in invoked_by or source_agent_id in invoked_by
+
+
 def sign_invocation_context(
     sender_email: str,
     source_agent_id: str,
@@ -226,7 +234,7 @@ async def invoke_agent(request: Request, body: AgentInvokeRequest) -> JSONRespon
     ACL
     ───
     1. source.can_invoke must contain target.id (if source_agent_id is present)
-    2. target.can_be_invoked_by must contain source.id or ``"*"``
+    2. target.can_be_invoked_by must contain source.id or ``"*"`` (empty denies)
     3. sender must have access to all skills attached to the target agent
     4. Call depth (``X-Agent-Depth`` header) must be < _MAX_AGENT_DEPTH
 
@@ -314,6 +322,21 @@ async def invoke_agent(request: Request, body: AgentInvokeRequest) -> JSONRespon
         )
 
     # ── can_invoke / can_be_invoked_by ACL ──────────────────────────────────
+    if source_agent_id and not target_accepts_invoker(
+        target_agent.can_be_invoked_by, source_agent_id
+    ):
+        logger.warning(
+            "A2A ACL: target=%s does not accept calls from source=%s",
+            target_agent.id, source_agent_id,
+        )
+        return JSONResponse(
+            status_code=403,
+            content={
+                "error": "access_denied",
+                "detail": "Target agent does not accept calls from this source.",
+            },
+        )
+
     if source_agent_id:
         source_can_invoke = agent_loads(
             db.query(Agent.can_invoke).filter(Agent.id == source_agent_id).scalar()
@@ -328,17 +351,6 @@ async def invoke_agent(request: Request, body: AgentInvokeRequest) -> JSONRespon
                 status_code=403,
                 content={"error": "access_denied", "detail": "Source agent is not permitted to invoke this target."},
             )
-
-    invoked_by = agent_loads(target_agent.can_be_invoked_by or "[]")
-    if invoked_by and "*" not in invoked_by and source_agent_id not in invoked_by:
-        logger.warning(
-            "A2A ACL: target=%s does not accept calls from source=%s",
-            target_agent.id, source_agent_id,
-        )
-        return JSONResponse(
-            status_code=403,
-            content={"error": "access_denied", "detail": "Target agent does not accept calls from this source."},
-        )
 
     # ── Skill access check for sender ───────────────────────────────────────
     from api_slack_events import (

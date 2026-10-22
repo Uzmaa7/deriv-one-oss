@@ -9,6 +9,8 @@ automations, and a small app builder — while credentials and models stay on
 [MIT License](https://github.com/deriv-com/deriv-one-oss/blob/master/LICENSE) ·
 [Security policy](https://github.com/deriv-com/deriv-one-oss/blob/master/SECURITY.md)
 
+![Deriv One workspace, skills, and Lab](deriv-one-demo-no-sidebar.gif)
+
 ---
 
 ## Contents

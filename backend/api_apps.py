@@ -3234,6 +3234,17 @@ async def serve_app_file(slug: str, path: str, request: Request):
     return await _serve_app_file_inner(slug, path, request)
 
 
+def _lab_asset_headers(data: bytes, mime: str, request: Request, app: App, auth: object) -> tuple[bytes, dict[str, str]]:
+    from lab_app_api_guard import inject_lab_runtime, lab_app_response_headers
+    from lab_capability import issue_lab_capability
+
+    headers = lab_app_response_headers(str(request.base_url), app.slug, app.id)
+    if (mime or "").split(";")[0].strip() == "text/html" and getattr(auth, "sub", None):
+        token = issue_lab_capability(auth, app.id)
+        data = inject_lab_runtime(data, app.id, token)
+    return data, headers
+
+
 async def _serve_app_file_inner(slug: str, rel_path: str, request: Request):
     # Auth is already verified by the CF Access middleware at request.state.auth.
     auth = getattr(request.state, "auth", None)
@@ -3301,12 +3312,11 @@ async def _serve_app_file_inner(slug: str, rel_path: str, request: Request):
             cache_header = "no-cache, no-store, must-revalidate"
         if Path(clean).suffix.lower() in no_cache_exts:
             data = _substitute_app_placeholders(data, app.id)
-        from lab_app_api_guard import lab_app_response_headers
-
+        data, extra = _lab_asset_headers(data, mime, request, app, auth)
         return _Response(
             content=data,
             media_type=mime,
-            headers={"Cache-Control": cache_header, **lab_app_response_headers()},
+            headers={"Cache-Control": cache_header, **extra},
         )
 
     # Local filesystem fallback (docker-compose / local dev)
@@ -3314,10 +3324,17 @@ async def _serve_app_file_inner(slug: str, rel_path: str, request: Request):
     if not file_path.exists():
         index = _app_dir(app.id) / "index.html"
         if index.exists():
-            return FileResponse(
-                str(index),
+            raw = _substitute_app_placeholders(index.read_bytes(), app.id)
+            raw, extra = _lab_asset_headers(raw, "text/html", request, app, auth)
+            from fastapi.responses import Response as _Response
+
+            return _Response(
+                content=raw,
                 media_type="text/html",
-                headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    **extra,
+                },
             )
         raise HTTPException(status_code=404, detail="File not found.")
 
@@ -3325,16 +3342,16 @@ async def _serve_app_file_inner(slug: str, rel_path: str, request: Request):
         from fastapi.responses import Response as _Response
         raw = file_path.read_bytes()
         raw = _substitute_app_placeholders(raw, app.id)
-        from lab_app_api_guard import lab_app_response_headers
-
+        raw, extra = _lab_asset_headers(raw, _get_mime(file_path), request, app, auth)
         return _Response(
             content=raw,
             media_type=_get_mime(file_path),
-            headers={"Cache-Control": cache_header, **lab_app_response_headers()},
+            headers={"Cache-Control": cache_header, **extra},
         )
 
+    _body, extra = _lab_asset_headers(b"", _get_mime(file_path), request, app, auth)
     return FileResponse(
         str(file_path),
         media_type=_get_mime(file_path),
-        headers={"Cache-Control": cache_header},
+        headers={"Cache-Control": cache_header, **extra},
     )

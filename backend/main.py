@@ -49,7 +49,7 @@ from cf_access import (
 from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, field_validator
 
 from database import (
@@ -1835,11 +1835,42 @@ app.add_middleware(
 @app.middleware("http")
 async def identity_gate(request: Request, call_next):
     """Authenticate every /api route from the verified identity token."""
-    if request.method == "OPTIONS":
-        return await call_next(request)
     path = request.url.path
+    if request.method == "OPTIONS":
+        from lab_app_api_guard import lab_cors_headers, lab_runtime_app_id
+
+        if (
+            request.headers.get("origin") == "null"
+            and lab_runtime_app_id(path)
+        ):
+            return Response(status_code=204, headers=lab_cors_headers())
+        return await call_next(request)
     if is_exempt_path(path):
         return await call_next(request)
+
+    from lab_app_api_guard import lab_cors_headers, lab_runtime_app_id
+    from lab_capability import lab_capability_header_name, verify_lab_capability
+
+    _cap_header = request.headers.get(lab_capability_header_name())
+    _runtime_app = lab_runtime_app_id(path) if path.startswith("/api/") else None
+    if _cap_header:
+        cap_auth = verify_lab_capability(_cap_header, _runtime_app or "")
+        if cap_auth is None or not _runtime_app:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Lab capability is not valid for this API."},
+            )
+        request.state.auth = cap_auth
+        response = await call_next(request)
+        if request.headers.get("origin") == "null":
+            for key, value in lab_cors_headers().items():
+                response.headers[key] = value
+        return response
+    if request.headers.get("origin") == "null" and path.startswith("/api/"):
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "Lab apps cannot use the platform session."},
+        )
 
     try:
         auth = build_auth_context(request.headers)
@@ -1898,7 +1929,8 @@ async def identity_gate(request: Request, call_next):
             platform_client_header=_pc_header,
             sec_fetch_site=request.headers.get("sec-fetch-site"),
             sec_fetch_mode=request.headers.get("sec-fetch-mode"),
-        ) and not lab_app_api_path_allowed(path):
+            method=request.method,
+        ):
             return JSONResponse(
                 status_code=403,
                 content={"detail": "This API is not available from Lab app contexts."},
