@@ -114,10 +114,19 @@ def test_validate_zip_archive_rejects_many_members():
     assert "members" in reason
 
 
-def test_lab_app_csp_restricts_connect_src():
-    from lab_app_api_guard import LAB_APP_CONTENT_SECURITY_POLICY
+def test_lab_app_csp_is_a_unique_origin():
+    from lab_app_api_guard import lab_app_content_security_policy
 
-    assert "connect-src 'self' /api/apps/" in LAB_APP_CONTENT_SECURITY_POLICY
+    policy = lab_app_content_security_policy(
+        "https://platform.example",
+        "travel-hub",
+        "app12345678",
+    )
+    assert policy.startswith("sandbox allow-scripts")
+    assert "allow-same-origin" not in policy
+    assert "connect-src https://platform.example/api/apps/app12345678/" in policy
+    assert "script-src 'unsafe-inline' https://platform.example/apps/travel-hub/" in policy
+    assert "connect-src 'self'" not in policy
 
 
 def test_untrusted_same_origin_blocks_admin_without_platform_client():
@@ -140,6 +149,55 @@ def test_untrusted_same_origin_blocks_admin_without_platform_client():
         sec_fetch_site="same-origin",
         sec_fetch_mode="cors",
     )
+    assert untrusted_same_origin_api_call(
+        path="/api/chat",
+        origin="https://platform.example",
+        referer=None,
+        platform_client_header=None,
+        sec_fetch_site="same-origin",
+        sec_fetch_mode="cors",
+    )
+    assert untrusted_same_origin_api_call(
+        path="/api/apps/app12345678/run",
+        origin="https://platform.example",
+        referer=None,
+        platform_client_header=None,
+        sec_fetch_site="same-origin",
+        sec_fetch_mode="cors",
+    )
+    assert not untrusted_same_origin_api_call(
+        path="/api/slack/events",
+        origin=None,
+        referer=None,
+        platform_client_header=None,
+        sec_fetch_site=None,
+        sec_fetch_mode=None,
+    )
+
+
+def test_lab_capability_cannot_read_platform_chats():
+    from auth_policy import AuthContext
+    from lab_app_api_guard import lab_runtime_app_id
+    from lab_capability import issue_lab_capability, verify_lab_capability
+
+    auth = AuthContext(sub="user-1", email="a@example.com", groups=("members",))
+    token = issue_lab_capability(auth, "app12345678")
+    assert lab_runtime_app_id("/api/chats/chat-1") is None
+    assert lab_runtime_app_id("/api/apps/app12345678/files") is None
+    assert lab_runtime_app_id("/api/apps/app12345678/me") == "app12345678"
+    opened = verify_lab_capability(token, "app12345678")
+    assert opened is not None and opened.sub == "user-1"
+    assert verify_lab_capability(token, "app87654321") is None
+    assert verify_lab_capability(token, "") is None
+
+
+def test_lab_html_injects_capability_before_app_scripts():
+    from lab_app_api_guard import inject_lab_runtime
+
+    html = inject_lab_runtime(b"<head><script src=\"./app.js\"></script></head>", "app12345678", "tok")
+    text = html.decode()
+    assert text.index("X-Lab-Capability") < text.index("./app.js")
+    assert "allow-same-origin" not in text
 
 
 def test_platform_client_header_roundtrip():
@@ -250,6 +308,15 @@ def test_agent_public_dict_hides_sensitive_fields():
     assert "signing_secret_ref" not in approved
     assert agent_to_dict(agent)["has_xoxb_secret"] is True
     assert "xoxb_secret_ref" not in agent_to_dict(agent)
+
+
+def test_empty_can_be_invoked_by_denies_agent_calls():
+    from api_internal import target_accepts_invoker
+
+    assert not target_accepts_invoker("[]", "agent-source")
+    assert not target_accepts_invoker(None, "agent-source")
+    assert target_accepts_invoker('["agent-source"]', "agent-source")
+    assert target_accepts_invoker('["*"]', "agent-other")
 
 
 def test_validate_sandbox_python_blocks_pwd_import():
