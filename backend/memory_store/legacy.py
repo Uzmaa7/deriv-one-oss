@@ -1,6 +1,7 @@
 """MemoryStore implementations."""
 
 from __future__ import annotations
+from providers.retrieval import Document, LocalRetrievalProvider, RetrievalProvider
 
 import logging
 from abc import ABC, abstractmethod
@@ -56,8 +57,10 @@ class MemoryStore(ABC):
 
 
 class LegacyMemoryStore(MemoryStore):
-    def __init__(self, policy: AgentMemoryPolicy | None = None) -> None:
+    def __init__(self, policy: AgentMemoryPolicy | None = None, retrieval_provider: RetrievalProvider | None = None,) -> None:
         self._policy = policy or load_agent_memory_policy()
+        self._retrieval = retrieval_provider or LocalRetrievalProvider()
+        
 
     def get_curated_context(
         self,
@@ -68,6 +71,36 @@ class LegacyMemoryStore(MemoryStore):
     ) -> list[AgentMemory]:
         return load_agent_memories(agent_id, user_email, channel_id=channel_id)
 
+
+    def search(
+        self,
+        agent_id: str,
+        query: str,
+        *,
+        limit: int = 5,
+        **kwargs: Any,
+    ) -> list[MemoryRecord]:
+        """Search indexed memory shards using BM25 full-text retrieval."""
+        if not agent_id or not query:
+            return []
+
+        chunks = self._retrieval.search(namespace=agent_id, query=query, limit=limit)
+
+        records: list[MemoryRecord] = []
+        for chunk in chunks:
+            records.append(
+                MemoryRecord(
+                    entry_id=chunk.document_id,
+                    agent_id=agent_id,
+                    key=chunk.title or chunk.document_id,
+                    value=chunk.text,
+                    scope="agent",
+                    source="auto",
+                )
+            )
+        return records
+
+    
     def upsert(
         self,
         *,
@@ -83,6 +116,7 @@ class LegacyMemoryStore(MemoryStore):
     ) -> AgentMemory | None:
         if source == "auto" and expires_at is None:
             expires_at = default_auto_expires_at(self._policy)
+
         row = upsert_agent_memory(
             agent_id=agent_id,
             scope=scope,
@@ -93,6 +127,7 @@ class LegacyMemoryStore(MemoryStore):
             source=source,
             expires_at=expires_at,
         )
+
         if row:
             self._enforce_quota_after_upsert(
                 agent_id=agent_id,
@@ -100,6 +135,24 @@ class LegacyMemoryStore(MemoryStore):
                 user_email=row.user_email,
                 channel_id=row.channel_id,
             )
+
+            # Auto-index into Retrieval Provider
+            if self._retrieval:
+                doc_id = f"mem_{row.id}"
+                doc = Document(
+                    id=doc_id,
+                    title=f"{scope}:{key}",
+                    text=f"{key}: {value}",
+                    metadata={"scope": scope, "key": key},
+                )
+                try:
+                    self._retrieval.index(
+                        namespace=agent_id, documents=[doc]
+                    )
+                except Exception as exc:
+                    logger.exception(
+                        "Failed to index memory %s in retrieval provider", doc_id
+                    )
         return row
 
     def _enforce_quota_after_upsert(
@@ -115,7 +168,7 @@ class LegacyMemoryStore(MemoryStore):
         quota = store_quota_for_scope(self._policy, scope)
         db = SessionLocal()
         try:
-            trim_scope_to_quota(
+            deleted_rows = trim_scope_to_quota(
                 db,
                 agent_id=agent_id,
                 scope=scope,
@@ -123,6 +176,20 @@ class LegacyMemoryStore(MemoryStore):
                 user_email=user_email,
                 channel_id=channel_id,
             )
+
+            if deleted_rows and self._retrieval:
+                for row_or_id in deleted_rows:
+                    mem_id = getattr(row_or_id, "id", row_or_id)
+                    doc_id = f"mem_{mem_id}"
+                    try:
+                        self._retrieval.delete_document(
+                            namespace=agent_id, document_id=doc_id
+                        )
+                    except Exception:
+                        logger.exception(
+                            "Failed to cleanup trimmed memory %s from retrieval index",
+                            doc_id,
+                        )
         finally:
             db.close()
 
@@ -143,6 +210,8 @@ class HybridMemoryStore(LegacyMemoryStore):
                 memory_id=row.id,
                 provenance=kwargs.get("provenance"),
             )
+
+
         return row
 
 

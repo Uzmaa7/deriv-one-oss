@@ -18,6 +18,8 @@ needs embeddings supplies a provider that does.
 
 from __future__ import annotations
 
+import hashlib
+
 import json
 import logging
 import os
@@ -148,14 +150,16 @@ class LocalRetrievalProvider(RetrievalProvider):
                 conn.executescript(
                     """
                     CREATE TABLE IF NOT EXISTS documents (
-                        id         TEXT PRIMARY KEY,
-                        title      TEXT NOT NULL DEFAULT '',
-                        uri        TEXT NOT NULL DEFAULT '',
-                        metadata   TEXT NOT NULL DEFAULT '{}',
-                        state      TEXT NOT NULL DEFAULT 'pending',
-                        error      TEXT,
-                        updated_at REAL NOT NULL DEFAULT 0
+                        id          TEXT PRIMARY KEY,
+                        title       TEXT NOT NULL DEFAULT '',
+                        uri         TEXT NOT NULL DEFAULT '',
+                        metadata    TEXT NOT NULL DEFAULT '{}',
+                        state       TEXT NOT NULL DEFAULT 'pending',
+                        error       TEXT,
+                        updated_at  REAL NOT NULL DEFAULT 0,
+                        content_hash TEXT DEFAULT ''
                     );
+                    CREATE INDEX IF NOT EXISTS idx_documents_hash ON documents(content_hash);
                     CREATE VIRTUAL TABLE IF NOT EXISTS document_text
                         USING fts5(document_id UNINDEXED, body);
                     """
@@ -175,7 +179,23 @@ class LocalRetrievalProvider(RetrievalProvider):
             conn = self._connect(namespace)
             try:
                 for doc in documents:
-                    if not doc.id:
+                    if not doc.id or not doc.text:
+                        continue
+
+                    doc_text = doc.text.strip()
+                    content_hash = hashlib.sha256(doc_text.encode("utf-8")).hexdigest()
+
+                    existing = conn.execute(
+                        "SELECT id FROM documents WHERE content_hash = ? AND state = ?",
+                        (content_hash, DocumentState.READY.value),
+                    ).fetchone()
+
+                    if existing:
+                        logger.debug(
+                            "Skipping duplicate document content for doc_id=%s (matches existing doc_id=%s)",
+                            doc.id,
+                            existing["id"],
+                        )
                         continue
                     try:
                         conn.execute(
@@ -183,17 +203,18 @@ class LocalRetrievalProvider(RetrievalProvider):
                         )
                         conn.execute(
                             "INSERT INTO document_text (document_id, body) VALUES (?, ?)",
-                            (doc.id, doc.text or ""),
+                            (doc.id, doc_text),
                         )
                         conn.execute(
                             """
                             INSERT INTO documents
-                                (id, title, uri, metadata, state, error, updated_at)
-                            VALUES (?, ?, ?, ?, ?, NULL, ?)
+                                (id, title, uri, metadata, state, error, updated_at, content_hash)
+                            VALUES (?, ?, ?, ?, ?, NULL, ?, ?)
                             ON CONFLICT(id) DO UPDATE SET
                                 title=excluded.title, uri=excluded.uri,
                                 metadata=excluded.metadata, state=excluded.state,
-                                error=NULL, updated_at=excluded.updated_at
+                                error=NULL, updated_at=excluded.updated_at,
+                                content_hash=excluded.content_hash
                             """,
                             (
                                 doc.id,
@@ -202,19 +223,20 @@ class LocalRetrievalProvider(RetrievalProvider):
                                 json.dumps(doc.metadata or {}),
                                 DocumentState.READY.value,
                                 now,
+                                content_hash,
                             ),
                         )
                     except sqlite3.Error as exc:
                         logger.exception("failed to index document %s", doc.id)
                         conn.execute(
                             """
-                            INSERT INTO documents (id, state, error, updated_at)
-                            VALUES (?, ?, ?, ?)
+                            INSERT INTO documents (id, state, error, updated_at, content_hash)
+                            VALUES (?, ?, ?, ?, ?)
                             ON CONFLICT(id) DO UPDATE SET
                                 state=excluded.state, error=excluded.error,
-                                updated_at=excluded.updated_at
+                                updated_at=excluded.updated_at, content_hash=excluded.content_hash
                             """,
-                            (doc.id, DocumentState.FAILED.value, str(exc)[:500], now),
+                            (doc.id, DocumentState.FAILED.value, str(exc)[:500], now, content_hash),
                         )
                 conn.commit()
             finally:
